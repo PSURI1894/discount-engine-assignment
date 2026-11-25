@@ -65,6 +65,10 @@ export function parseRulesCSV(csvText) {
       errors.push(`Row ${rowNum}: value must be a positive number, got "${row.value}"`)
       return
     }
+    if (type === 'percentage' && value > 100) {
+      errors.push(`Row ${rowNum}: a percentage discount cannot exceed 100, got "${row.value}"`)
+      return
+    }
 
     const stackableStr = row.stackable.trim().toLowerCase()
     const stackable = stackableStr === 'true' || stackableStr === '1' || stackableStr === 'yes'

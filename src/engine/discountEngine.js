@@ -54,15 +54,16 @@ export function ruleMatchesItem(item, rule) {
 /**
  * Calculates the rupee discount a rule gives on a given price.
  * Uses the provided price, not the original base price — important for stacking.
+ * The discount is capped at the price: an offer can make an item free, never negative.
  */
 export function calculateDiscountAmount(price, rule) {
+  let amount = 0
   if (rule.type === 'percentage') {
-    return Math.round(price * rule.value / 100)
+    amount = Math.round(price * rule.value / 100)
+  } else if (rule.type === 'flat') {
+    amount = Math.round(rule.value)
   }
-  if (rule.type === 'flat') {
-    return rule.value
-  }
-  return 0
+  return Math.min(Math.max(amount, 0), price)
 }
 
 /**

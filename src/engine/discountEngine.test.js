@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { processCart, cartTotal } from './discountEngine.js'
-import { SAMPLE_CART, SAMPLE_ITEM_RULES } from '../test/fixtures.js'
+import { processCart, cartTotal, applyDiscounts } from './discountEngine.js'
+import { SAMPLE_CART, SAMPLE_ITEM_RULES, RULE_01, item } from '../test/fixtures.js'
 
 const byId = (results) => Object.fromEntries(results.map((r) => [r.itemId, r]))
 
@@ -36,5 +36,22 @@ describe('item-level discounts — expected results from the brief', () => {
 
   it('cart total before any cart offer is Rs.5,932', () => {
     expect(cartTotal(Object.values(results))).toBe(5932)
+  })
+})
+
+describe('discounts never take a price below zero', () => {
+  const nordicFlat500 = { ruleId: 'RULE-X', scope: 'brand', appliesTo: 'Nordic Basics', type: 'flat', value: 500, stackable: false }
+
+  it('caps a flat discount larger than the item price (item becomes free, not negative)', () => {
+    const res = applyDiscounts(item({ brand: 'Nordic Basics', platform: 'Noon', basePrice: 449 }), [nordicFlat500])
+    expect(res.finalPrice).toBe(0)
+    expect(res.totalDiscount).toBe(449)
+  })
+
+  it('caps a stackable flat applied after the winning rule', () => {
+    const stackableFlat = { ...nordicFlat500, stackable: true }
+    const res = applyDiscounts(item({ brand: 'Nordic Basics', platform: 'Amazon India', basePrice: 449 }), [RULE_01, stackableFlat])
+    expect(res.finalPrice).toBe(0)
+    expect(res.totalDiscount).toBe(449)
   })
 })
