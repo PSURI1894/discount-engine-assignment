@@ -139,7 +139,8 @@ try {
 
   await click('Give a discount for big orders')
   await click('Parse rule')
-  record('a vague rule asks for more detail', await waitFor(has('Need a bit more detail')))
+  // An LLM may file this under "unsupported" rather than "unresolvable"; either way it must refuse.
+  record('a vague rule is refused with a message', await waitFor(`${has('Need a bit more detail')} || ${has("This rule can't be added")}`))
 
   await upload('Upload cart.pdf', 'cart-small-order.pdf')
   record('PDF read in the browser', await waitFor(has('Loaded 3 items from cart-small-order.pdf')))

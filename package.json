@@ -10,7 +10,8 @@
     "test": "vitest run",
     "make:pdfs": "node scripts/make-sample-pdfs.js",
     "eval:parser": "node scripts/eval-parser.js",
-    "check:browser": "node scripts/browser-check.js"
+    "check:browser": "node scripts/browser-check.js",
+    "check:llm": "node scripts/check-llm.js"
   },
   "dependencies": {
     "papaparse": "^5.4.1",

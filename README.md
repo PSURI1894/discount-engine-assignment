@@ -179,8 +179,9 @@ belongs to finance and the merchant, not just engineering:
 | Command | What it does |
 |---|---|
 | `npm test` | 286 unit, server and UI-flow tests (also run in CI) |
-| `npm run eval:parser` | scores the parser on the evaluation set: the LLM if a key is set, otherwise the rule-based parser |
-| `npm run check:browser` | with the app running, drives a local Chrome/Edge through the main flows (20 checks) |
+| `npm run eval:parser` | scores the parser on the evaluation set: the LLM if a key is set (retrying rate limits), otherwise the rule-based parser; prints a README row |
+| `npm run check:llm` | checks that the LLM in `.env` answers correctly, and explains what's wrong if not; add a URL to check a deployment |
+| `npm run check:browser` | with the app running, drives a local Chrome/Edge through the main flows (20 checks); set `BASE_URL` to check a deployment |
 | `npm run make:pdfs` | regenerates the sample PDFs |
 
 ### Testing and measurement
@@ -205,7 +206,8 @@ not accuracy on unseen text:
 | Rule-based | 48/49 | 0 (it asks instead of guessing at number words like "a hundred rupees") |
 
 On 25 further phrasings written after those fixes, it returned no wrong rules. The number that
-matters is the LLM's: run `npm run eval:parser` with a key.
+matters is the LLM's: run `npm run eval:parser` with a key. It retries rate limits, leaves out any case
+the LLM never answered (rather than scoring the fallback's answer), and prints the row for this table.
 
 ### Review findings
 
@@ -259,6 +261,10 @@ Environment Variables:
 | `LLM_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` (Gemini) or `https://api.groq.com/openai/v1` (Groq) |
 | `LLM_MODEL` | a model available on your plan, e.g. `gemini-2.5-flash` |
 
+Then run `npm run check:llm`. It sends one rule to the model and either confirms the model read it
+correctly or says what's wrong: a rejected key, a rate limit, or an unknown model (it then lists the
+models your key can use).
+
 ### Deploying (Vercel)
 
 1. Import the repository in Vercel. The Vite preset is detected (build `npm run build`, output
@@ -266,6 +272,14 @@ Environment Variables:
 2. Optionally add the LLM variables above.
 3. Deploy. `api/parse-rule.js` becomes the `/api/parse-rule` serverless function. Tests live outside
    `api/`, so they aren't deployed as functions.
+4. Check the deployment:
+
+   ```bash
+   npm run check:llm -- https://your-app.vercel.app             # is the live site using the LLM?
+   BASE_URL=https://your-app.vercel.app npm run check:browser   # the whole app, in a real browser
+   ```
+
+   (On Windows PowerShell, use `$env:BASE_URL="https://your-app.vercel.app"; npm run check:browser`.)
 
 ### Project structure
 
