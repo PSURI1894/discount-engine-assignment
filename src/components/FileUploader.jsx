@@ -1,13 +1,14 @@
 /**
- * CsvUploader.jsx
+ * FileUploader.jsx
  *
- * Renders a file upload area for a single CSV file.
- * Calls onLoad(rawText) when a file is selected.
+ * Renders a file upload area for a single file.
+ * Calls onLoad(content, fileName) when a file is selected — content is text by
+ * default, or an ArrayBuffer when readAs="arrayBuffer" (e.g. PDFs).
  */
 
 import { useRef } from 'react'
 
-export default function CsvUploader({ label, description, onLoad, hasData, fileName }) {
+export default function FileUploader({ label, description, onLoad, hasData, fileName, accept = '.csv', readAs = 'text', busy = false }) {
   const inputRef = useRef(null)
 
   function handleFile(e) {
@@ -15,7 +16,8 @@ export default function CsvUploader({ label, description, onLoad, hasData, fileN
     if (!file) return
     const reader = new FileReader()
     reader.onload = (evt) => onLoad(evt.target.result, file.name)
-    reader.readAsText(file)
+    if (readAs === 'arrayBuffer') reader.readAsArrayBuffer(file)
+    else reader.readAsText(file)
     // Reset input so the same file can be re-uploaded
     e.target.value = ''
   }
@@ -35,9 +37,10 @@ export default function CsvUploader({ label, description, onLoad, hasData, fileN
       <input
         ref={inputRef}
         type="file"
-        accept=".csv"
+        accept={accept}
         style={{ display: 'none' }}
         onChange={handleFile}
+        aria-label={`Upload ${label}`}
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
         <span style={{ fontSize: 20 }}>{hasData ? '✅' : '📄'}</span>
@@ -57,7 +60,7 @@ export default function CsvUploader({ label, description, onLoad, hasData, fileN
               letterSpacing: '0.05em',
             }}
           >
-            {hasData ? 'Change' : 'Upload'}
+            {busy ? 'Reading…' : hasData ? 'Change' : 'Upload'}
           </span>
         </div>
       </div>

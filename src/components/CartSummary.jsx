@@ -17,7 +17,8 @@ const S = {
   offerLabel: { fontSize: 13, color: '#7a4a00', fontWeight: 700 },
   offerNote: { fontSize: 11, color: '#7a4a00', marginTop: 2 },
   offerValue: { fontSize: 13, color: '#1e5c2c', fontWeight: 700, whiteSpace: 'nowrap' },
-  finalRow: { borderTop: '1px solid #CECECE', marginTop: '0.35rem', paddingTop: '0.55rem' },
+  // Uses the padding shorthand like S.row: mixing it with paddingTop breaks when the offer line toggles.
+  finalRow: { borderTop: '1px solid #CECECE', marginTop: '0.35rem', padding: '0.55rem 0 0.35rem' },
   finalLabel: { fontSize: 14, color: '#131A48', fontWeight: 700 },
   finalValue: { fontSize: 18, color: '#131A48', fontWeight: 700, whiteSpace: 'nowrap' },
   savings: { textAlign: 'right', fontSize: 12, color: '#1e5c2c', fontWeight: 600 },

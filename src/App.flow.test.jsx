@@ -11,8 +11,16 @@ import { join } from 'node:path'
 import App from './App.jsx'
 import { handleParseRule } from '../server/ruleParser/handler.js'
 
+// Real pdf.js, but its Node build — there is no browser worker under jsdom.
+vi.mock('./inputs/pdfText.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  return { ...actual, extractPdfLines: (data) => actual.extractPdfLines(data, pdfjs) }
+})
+
 // import.meta.url isn't a file URL under jsdom, so resolve from the project root.
-const sample = (name) => readFileSync(join(process.cwd(), 'sample-data', name), 'utf8')
+const samplePath = (name) => join(process.cwd(), 'sample-data', name)
+const sample = (name) => readFileSync(samplePath(name), 'utf8')
 
 beforeEach(() => {
   vi.stubGlobal('fetch', async (_url, init) => {
@@ -29,16 +37,23 @@ function upload(input, name) {
   fireEvent.change(input, { target: { files: [new File([sample(name)], name, { type: 'text/csv' })] } })
 }
 
+function uploadPdf(name, bytes = readFileSync(samplePath(name))) {
+  fireEvent.change(screen.getByLabelText('Upload cart.pdf'), {
+    target: { files: [new File([bytes], name, { type: 'application/pdf' })] },
+  })
+}
+
 async function loadSampleData() {
   const utils = render(<App />)
-  const [rulesInput, cartInput] = utils.container.querySelectorAll('input[type="file"]')
+  const rulesInput = screen.getByLabelText('Upload rules.csv')
   upload(rulesInput, 'rules.csv')
-  upload(cartInput, 'cart.csv')
+  upload(screen.getByLabelText('Upload cart.csv'), 'cart.csv')
   await screen.findByText('Final cart total')
   return { ...utils, rulesInput }
 }
 
 const finalTotal = () => screen.getByText('Final cart total').nextSibling.textContent
+const amountToPay = () => screen.getByText(/^(Final cart total|Cart total)$/).nextSibling.textContent
 
 async function parse(text) {
   fireEvent.change(screen.getByLabelText('Describe a discount rule'), { target: { value: text } })
@@ -111,6 +126,17 @@ describe('adding a rule in plain English', () => {
     expect(finalTotal()).toBe('Rs.5,339')
   })
 
+  it('keeps added rules when a new cart is loaded, and re-prices the new cart with them', async () => {
+    await loadSampleData()
+    await parse('Rs.100 flat discount on all Flipkart items')
+    fireEvent.click(within(await screen.findByRole('region', { name: 'Confirm new rule' })).getByRole('button', { name: 'Add rule' }))
+
+    uploadPdf('cart-small-order.pdf')
+    await screen.findByText(/Loaded 3 items from cart-small-order.pdf/)
+    // Table Lamp on Flipkart: Rs.1,249 − Rs.100 (RULE-05) = 1,149, then 10% stacked (RULE-03) = 1,034
+    expect(screen.getByText('Flipkart offer: Rs.100 off + Flipkart offer: 10% off')).toBeTruthy()
+  })
+
   it('keeps added rules when a new rules file is uploaded', async () => {
     const { rulesInput } = await loadSampleData()
     await parse('20% off for Natura Casa brand, stackable with other offers')
@@ -119,5 +145,56 @@ describe('adding a rule in plain English', () => {
     upload(rulesInput, 'rules.csv')
     await screen.findByText(/4 from file, 1 added/)
     expect(finalTotal()).toBe('Rs.5,026')
+  })
+})
+
+describe('uploading a cart PDF', () => {
+  it('replaces the cart and re-runs the engine with the active rules', async () => {
+    await loadSampleData()
+    uploadPdf('cart-small-order.pdf')
+
+    expect((await screen.findByRole('status')).textContent).toMatch(/Loaded 3 items from cart-small-order.pdf \(order #OP-9934\)/)
+    expect(screen.getAllByText('Throw Blanket').length).toBeGreaterThan(0)
+    expect(screen.queryAllByText('Cushion Cover')).toHaveLength(0)
+    // Rs.3,437 is below the Rs.4,000 minimum: no cart offer line
+    expect(screen.queryByText(/Cart offer:/)).toBeNull()
+    expect(amountToPay()).toBe('Rs.3,437')
+  })
+
+  it('reads the brief\'s sample PDF into the same result as cart.csv', async () => {
+    await loadSampleData()
+    uploadPdf('cart.pdf')
+    await screen.findByText(/Loaded 6 items from cart.pdf/)
+    expect(finalTotal()).toBe('Rs.5,339')
+  })
+
+  it('asks before replacing the cart when some rows could not be read', async () => {
+    await loadSampleData()
+    uploadPdf('cart-with-errors.pdf')
+
+    const review = await screen.findByRole('region', { name: 'Review cart PDF' })
+    expect(review.textContent).toMatch(/Read 4 of 6 item rows from cart-with-errors.pdf/)
+    expect(review.textContent).toMatch(/Row 3 — “Wall Shelf  LivSpace Pro  Amazon India  Rs.abc”: base price must be a positive number/)
+    expect(review.textContent).toMatch(/Row 4 — .*platform is missing/)
+    expect(review.textContent).toMatch(/Ignored \(not items\): Total  Rs.5,932/)
+    expect(review.textContent).toMatch(/Cart total would change: Rs.5,339 → Rs.2,924/)
+    expect(finalTotal()).toBe('Rs.5,339') // nothing replaced yet
+
+    fireEvent.click(within(review).getByRole('button', { name: 'Keep current cart' }))
+    expect(screen.queryByRole('region', { name: 'Review cart PDF' })).toBeNull()
+    expect(finalTotal()).toBe('Rs.5,339')
+
+    uploadPdf('cart-with-errors.pdf')
+    fireEvent.click(within(await screen.findByRole('region', { name: 'Review cart PDF' })).getByRole('button', { name: 'Replace cart with 4 items' }))
+    expect(amountToPay()).toBe('Rs.2,924')
+    expect(screen.getByRole('status').textContent).toMatch(/Row 3 skipped/)
+  })
+
+  it('leaves the cart alone when the file is not a readable PDF', async () => {
+    await loadSampleData()
+    uploadPdf('not-really.pdf', new TextEncoder().encode('this is not a pdf'))
+    expect(await screen.findByText("not-really.pdf: This file couldn't be read as a PDF.")).toBeTruthy()
+    expect(screen.getByText('Nothing was loaded from this file, so the previous cart is unchanged.')).toBeTruthy()
+    expect(finalTotal()).toBe('Rs.5,339')
   })
 })

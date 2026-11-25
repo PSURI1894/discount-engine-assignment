@@ -7,12 +7,14 @@
  */
 
 import { useMemo, useState } from 'react'
-import CsvUploader from './components/CsvUploader.jsx'
+import FileUploader from './components/FileUploader.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
 import CartSummary from './components/CartSummary.jsx'
 import RuleInput from './components/RuleInput.jsx'
+import PdfImportReview from './components/PdfImportReview.jsx'
 import { parseRulesCSV, parseCartCSV } from './inputs/csvInput.js'
+import { readPdfCart } from './inputs/pdfCartInput.js'
 import { nextRuleId, renumberAddedRules } from './inputs/ruleIds.js'
 import { priceCart } from './engine/discountEngine.js'
 import { formatRupees as rs, formatRuleValue } from './engine/format.js'
@@ -103,10 +105,26 @@ const S = {
   },
   hint:    { fontSize: 12, color: '#888', marginBottom: '0.6rem' },
   linkBtn: { background: 'none', border: 'none', padding: 0, color: '#c0392b', fontSize: 11, textDecoration: 'underline', cursor: 'pointer' },
+  notice:  { background: '#eef6f0', border: '1px solid #b9dcc3', borderRadius: 4, padding: '0.5rem 0.7rem', marginTop: '0.5rem', fontSize: 12, color: '#1e5c2c' },
   tag: (color, bg) => ({
     display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
     borderRadius: 20, background: bg, color, textTransform: 'uppercase', letterSpacing: '0.04em',
   }),
+}
+
+// ── PDF import messages ──────────────────────────────────────────
+
+const describeSkipped = (s) => `Row ${s.row} skipped (“${s.text}”): ${s.reason}`
+
+function pdfNotice(fileName, { items, skipped, ignoredLines, orderRef }) {
+  const order = orderRef ? ` (order #${orderRef})` : ''
+  return {
+    text: `Loaded ${items.length} item${items.length === 1 ? '' : 's'} from ${fileName}${order}.`,
+    details: [
+      ...skipped.map(describeSkipped),
+      ...(ignoredLines.length > 0 ? [`Ignored (not items): ${ignoredLines.join('; ')}`] : []),
+    ],
+  }
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -121,7 +139,10 @@ export default function App() {
 
   const [cartItems, setCartItems]   = useState([])
   const [cartErrors, setCartErrors] = useState([])
-  const [cartFileName, setCartFileName]   = useState('')
+  const [cartSource, setCartSource] = useState(null) // { kind: 'csv' | 'pdf', fileName }
+  const [cartNotice, setCartNotice] = useState(null) // what the last PDF import did
+  const [pdfBusy, setPdfBusy]       = useState(false)
+  const [pdfReview, setPdfReview]   = useState(null) // { fileName, result } awaiting a decision
 
   const rules = useMemo(() => [...fileRules, ...addedRules], [fileRules, addedRules])
   const addedIds = useMemo(() => new Set(addedRules.map((r) => r.ruleId)), [addedRules])
@@ -176,15 +197,49 @@ export default function App() {
     },
   ]
 
+  const keptCartNote = () =>
+    cartItems.length > 0 ? ['Nothing was loaded from this file, so the previous cart is unchanged.'] : []
+
+  function replaceCart(items, source, { errors = [], notice = null } = {}) {
+    setCartItems(items)
+    setCartSource(source)
+    setCartErrors(errors)
+    setCartNotice(notice)
+    setPdfReview(null)
+  }
+
   function handleCartLoad(csvText, fileName) {
     const { data, errors } = parseCartCSV(csvText)
+    setPdfReview(null)
     if (data.length === 0) {
-      setCartErrors(cartItems.length > 0 ? [...errors, 'Nothing was loaded from this file, so the previous cart is unchanged.'] : errors)
+      setCartErrors([...errors, ...keptCartNote()])
       return
     }
-    setCartItems(data)
-    setCartErrors(errors)
-    setCartFileName(fileName)
+    replaceCart(data, { kind: 'csv', fileName }, { errors })
+  }
+
+  // A fully readable PDF replaces the cart at once; a partly readable one is
+  // shown for review first; an unreadable one leaves the cart as it was.
+  async function handleCartPdf(buffer, fileName) {
+    setPdfBusy(true)
+    setPdfReview(null)
+    const result = await readPdfCart(buffer)
+    setPdfBusy(false)
+
+    if (result.fileError) {
+      setCartErrors([`${fileName}: ${result.fileError}`, ...result.skipped.map(describeSkipped), ...keptCartNote()])
+      return
+    }
+    if (result.skipped.length > 0) {
+      setPdfReview({ fileName, result })
+      return
+    }
+    replaceCart(result.items, { kind: 'pdf', fileName }, { notice: pdfNotice(fileName, result) })
+  }
+
+  function acceptPdfReview() {
+    const { fileName, result } = pdfReview
+    replaceCart(result.items, { kind: 'pdf', fileName }, { notice: pdfNotice(fileName, result) })
   }
 
   // ── Render ──
@@ -204,7 +259,7 @@ export default function App() {
           {/* Rules upload */}
           <div style={S.section}>
             <div style={S.sectionTitle}>Discount Rules</div>
-            <CsvUploader
+            <FileUploader
               label="rules.csv"
               description="Upload your discount rules CSV"
               onLoad={handleRulesLoad}
@@ -226,14 +281,45 @@ export default function App() {
           {/* Cart upload */}
           <div style={S.section}>
             <div style={S.sectionTitle}>Cart Items</div>
-            <CsvUploader
+            <FileUploader
               label="cart.csv"
               description="Upload your cart CSV"
               onLoad={handleCartLoad}
-              hasData={cartItems.length > 0}
-              fileName={cartFileName}
+              hasData={cartSource?.kind === 'csv'}
+              fileName={cartSource?.fileName}
+            />
+            <div style={{ height: '0.5rem' }} />
+            <FileUploader
+              label="cart.pdf"
+              description="Or upload a cart PDF (Product, Brand, Platform, Base Price)"
+              onLoad={handleCartPdf}
+              accept=".pdf,application/pdf"
+              readAs="arrayBuffer"
+              busy={pdfBusy}
+              hasData={cartSource?.kind === 'pdf'}
+              fileName={cartSource?.fileName}
             />
             <ErrorBanner errors={cartErrors} />
+            {pdfReview && (
+              <PdfImportReview
+                fileName={pdfReview.fileName}
+                result={pdfReview.result}
+                currentTotal={results ? results.total : null}
+                newTotal={priceCart(pdfReview.result.items, rules).total}
+                onReplace={acceptPdfReview}
+                onCancel={() => setPdfReview(null)}
+              />
+            )}
+            {cartNotice && (
+              <div style={S.notice} role="status">
+                {cartNotice.text}
+                {cartNotice.details.length > 0 && (
+                  <ul style={{ margin: '4px 0 0', paddingLeft: '1.1rem' }}>
+                    {cartNotice.details.map((d) => <li key={d}>{d}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
             {cartItems.length > 0 && (
               <div style={{ marginTop: '0.75rem' }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
