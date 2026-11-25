@@ -19,9 +19,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# Editor directories
+# Editor / tool directories
 .vscode/
 .idea/
+.claude/
+.vercel/
+.netlify/
 *.suo
 *.ntvs*
 *.njsproj
