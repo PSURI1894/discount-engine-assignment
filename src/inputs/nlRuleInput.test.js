@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { interpretParserOutput, parseRuleFromText, knownNames, crossCheck } from './nlRuleInput.js'
+import { interpretParserOutput, parseRuleFromText, knownNames } from './nlRuleInput.js'
+import { crossCheck } from './crossCheck.js'
 import { handleParseRule } from '../../server/ruleParser/handler.js'
 import { offlineParse } from '../../server/ruleParser/offlineParser.js'
 import { priceCart } from '../engine/discountEngine.js'
@@ -107,6 +108,12 @@ describe('crossCheck — the LLM\'s reading against the rule-based parser', () =
   it('names the fields that differ', () => {
     const res = crossCheck({ ...rule, stackable: true }, offlineParse('Rs.100 flat discount on all Flipkart items', known))
     expect(res.warnings).toEqual(['A separate rule-based reading disagrees on stackable (LLM: Yes, rule-based: No). Check this before adding.'])
+  })
+
+  it('formats differing amounts the Indian way', () => {
+    const cart4000 = { ruleId: 'RULE-05', scope: 'cart', appliesTo: null, type: 'percentage', value: 10, stackable: false, minCartValue: 4000 }
+    const res = crossCheck(cart4000, offlineParse('10% off if cart value is more than Rs.5,000', known))
+    expect(res.warnings[0]).toBe('A separate rule-based reading disagrees on min cart value (LLM: Rs.4,000, rule-based: Rs.5,000). Check this before adding.')
   })
 
   it('warns when the rule-based parser sees a condition the engine cannot apply', () => {

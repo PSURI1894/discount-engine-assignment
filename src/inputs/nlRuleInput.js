@@ -6,7 +6,7 @@
  *   text ─► POST /api/parse-rule (LLM, or the offline parser) ─► raw reply
  *        ─► interpretParserOutput(): read the JSON, check its shape,
  *           validateRule() — the same gate CSV rows go through — and add warnings
- *        ─► crossCheck(): when an LLM answered, compare with the rule-based reading
+ *        ─► crossCheck() (crossCheck.js): when an LLM answered, compare with the rule-based reading
  *        ─► { status: 'ok', rule, assumptions, warnings } for the confirmation step
  *
  * Nothing the parser returns reaches the engine until it passes validateRule()
@@ -19,6 +19,7 @@
 
 import { validateRule } from './validate.js'
 import { nextRuleId } from './ruleIds.js'
+import { crossCheck } from './crossCheck.js'
 
 export const PARSE_ENDPOINT = '/api/parse-rule'
 
@@ -126,66 +127,6 @@ export function interpretParserOutput(output, { rules = [], cartItems = [] } = {
     assumptions: strings(data.assumptions),
     warnings: warningsFor(result.parsed, { rules, cartItems }),
   }
-}
-
-const FIELD_LABELS = {
-  scope: 'scope', appliesTo: 'applies to', type: 'type', value: 'value', stackable: 'stackable', minCartValue: 'min cart value',
-}
-
-function show(field, value, type) {
-  if (value === null || value === undefined || value === '') return '—'
-  if (field === 'stackable') return value ? 'Yes' : 'No'
-  if (field === 'value') return type === 'percentage' ? `${value}%` : `Rs.${value}`
-  if (field === 'minCartValue') return `Rs.${value}`
-  return String(value)
-}
-
-/**
- * Compares the LLM's validated rule with the offline parser's reading of the
- * same text. The offline parser is narrow but precise: when it can read a
- * description at all, it reads it literally, and it recognises conditions the
- * engine can't apply. So:
- *   both read a rule, same fields  → a reassuring note
- *   both read a rule, fields differ → a warning naming the fields
- *   offline flags "unsupported"     → a warning: the LLM may have dropped a condition
- *   offline can't account for words that look like a condition or a name
- *     ("only", "and", "Myntra")     → a warning naming them
- *   offline can't read it otherwise → nothing (expected for free-form phrasing)
- * Returns { warnings, note }.
- */
-export function crossCheck(rule, offlineOutput) {
-  if (!offlineOutput || typeof offlineOutput !== 'object') return { warnings: [], note: null }
-
-  if (offlineOutput.status === 'unsupported') {
-    return {
-      warnings: [`A rule-based check flagged this description: "${offlineOutput.message}" Make sure the rule above doesn't leave out a condition.`],
-      note: null,
-    }
-  }
-
-  const suspicious = strings(offlineOutput.suspicious)
-  if (offlineOutput.status !== 'ok' && suspicious.length > 0) {
-    const words = suspicious.map((w) => `"${w}"`).join(', ')
-    return {
-      warnings: [`The description mentions ${words}, which the rule above may not reflect. Make sure it doesn't leave out a condition or a name.`],
-      note: null,
-    }
-  }
-  if (offlineOutput.status !== 'ok' || !offlineOutput.rule) return { warnings: [], note: null }
-
-  const other = offlineOutput.rule
-  const differences = Object.keys(FIELD_LABELS).filter((field) => {
-    if (field === 'appliesTo') return !sameName(rule.appliesTo, other.appliesTo)
-    return (rule[field] ?? null) !== (other[field] ?? null)
-  })
-
-  if (differences.length === 0) {
-    return { warnings: [], note: 'A separate rule-based check read this description the same way.' }
-  }
-  const detail = differences
-    .map((f) => `${FIELD_LABELS[f]} (LLM: ${show(f, rule[f], rule.type)}, rule-based: ${show(f, other[f], other.type)})`)
-    .join('; ')
-  return { warnings: [`A separate rule-based reading disagrees on ${detail}. Check this before adding.`], note: null }
 }
 
 /**
