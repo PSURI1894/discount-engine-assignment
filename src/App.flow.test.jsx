@@ -148,6 +148,34 @@ describe('adding a rule in plain English', () => {
   })
 })
 
+describe('customer view', () => {
+  it('shows each item with one price and one offer label, and no rule IDs', async () => {
+    await loadSampleData()
+    fireEvent.click(screen.getByRole('button', { name: 'Customer view' }))
+
+    const checkout = screen.getByRole('region', { name: 'Customer checkout view' })
+    expect(within(checkout).getByText('Your cart (6 items)')).toBeTruthy()
+    expect(within(checkout).getByText('Amazon India offer: 15% off (better than Natura Casa Rs.150 off) · You save Rs.195')).toBeTruthy()
+    expect(within(checkout).getByText('No offers available for LivSpace Pro products on Noon')).toBeTruthy()
+    expect(within(checkout).getByText('You pay').nextSibling.textContent).toBe('Rs.5,339')
+    expect(checkout.textContent).not.toMatch(/RULE-0\d/)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Merchant view' }))
+    expect(finalTotal()).toBe('Rs.5,339')
+  })
+
+  it('tells the shopper how much more unlocks the cart offer when just below it', async () => {
+    await loadSampleData()
+    uploadPdf('cart-small-order.pdf')
+    await screen.findByText(/Loaded 3 items/)
+    // Rs.3,437 after item discounts; the cart offer starts at Rs.4,000
+    expect(screen.getByRole('note').textContent).toBe('No cart offer yet: the cart is Rs.563 short of RULE-04 (10% off at Rs.4,000 or more).')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Customer view' }))
+    expect(screen.getByRole('note').textContent).toBe('Add Rs.563 more to get 10% off your cart.')
+  })
+})
+
 describe('uploading a cart PDF', () => {
   it('replaces the cart and re-runs the engine with the active rules', async () => {
     await loadSampleData()

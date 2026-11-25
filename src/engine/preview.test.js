@@ -1,6 +1,41 @@
 import { describe, it, expect } from 'vitest'
-import { previewRule } from './preview.js'
-import { SAMPLE_CART, SAMPLE_RULES, item, makeRule } from '../test/fixtures.js'
+import { previewRule, nextCartOffer } from './preview.js'
+import { priceCart } from './discountEngine.js'
+import { SAMPLE_CART, SAMPLE_RULES, RULE_04, item, makeRule } from '../test/fixtures.js'
+
+describe('nextCartOffer', () => {
+  const withoutVase = SAMPLE_CART.filter((i) => i.itemId !== 'ITEM-04') // Rs.3,433 after item discounts
+
+  it('says how far a cart is below a cart offer it does not get yet', () => {
+    const pricing = priceCart(withoutVase, SAMPLE_RULES)
+    expect(pricing.subtotal).toBe(3433)
+    expect(nextCartOffer(pricing, SAMPLE_RULES)).toEqual({ ruleId: 'RULE-04', shortfall: 567, minCartValue: 4000, offer: '10% off' })
+  })
+
+  it('handles Rs.1 short of the minimum', () => {
+    expect(nextCartOffer(priceCart([item({ basePrice: 3999 })], [RULE_04]), [RULE_04]).shortfall).toBe(1)
+  })
+
+  it('returns null once the cart already gets the best cart offer available', () => {
+    expect(nextCartOffer(priceCart(SAMPLE_CART, SAMPLE_RULES), SAMPLE_RULES)).toBeNull()
+  })
+
+  it('points to a bigger cart offer at a higher minimum', () => {
+    const pct20Above9000 = makeRule({ ruleId: 'RULE-05', scope: 'cart', type: 'percentage', value: 20, stackable: false, minCartValue: 9000 })
+    const rules = [...SAMPLE_RULES, pct20Above9000]
+    expect(nextCartOffer(priceCart(SAMPLE_CART, rules), rules)).toMatchObject({ ruleId: 'RULE-05', shortfall: 3068, offer: '20% off' })
+  })
+
+  it('ignores a higher-minimum offer that would not beat the one already applied', () => {
+    const pct5Above9000 = makeRule({ ruleId: 'RULE-05', scope: 'cart', type: 'percentage', value: 5, stackable: false, minCartValue: 9000 })
+    const rules = [...SAMPLE_RULES, pct5Above9000]
+    expect(nextCartOffer(priceCart(SAMPLE_CART, rules), rules)).toBeNull()
+  })
+
+  it('returns null when there are no cart rules', () => {
+    expect(nextCartOffer(priceCart(withoutVase, SAMPLE_RULES.slice(0, 3)), SAMPLE_RULES.slice(0, 3))).toBeNull()
+  })
+})
 
 describe('previewRule', () => {
   it('lists the item, cart-offer and total changes a rule would make (brief example 1)', () => {

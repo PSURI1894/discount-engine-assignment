@@ -16,7 +16,9 @@ import PdfImportReview from './components/PdfImportReview.jsx'
 import { parseRulesCSV, parseCartCSV } from './inputs/csvInput.js'
 import { readPdfCart } from './inputs/pdfCartInput.js'
 import { nextRuleId, renumberAddedRules } from './inputs/ruleIds.js'
+import CheckoutView from './components/CheckoutView.jsx'
 import { priceCart } from './engine/discountEngine.js'
+import { nextCartOffer } from './engine/preview.js'
 import { formatRupees as rs, formatRuleValue } from './engine/format.js'
 
 // ── Column definitions ───────────────────────────────────────────
@@ -97,6 +99,10 @@ const S = {
   main:    { maxWidth: 1180, margin: '0 auto', padding: '1.8rem 1.5rem' },
   section: { background: '#fff', border: '1px solid #CECECE', borderRadius: 6, padding: '1.2rem 1.4rem', marginBottom: '1.2rem' },
   sectionTitle: { fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 14, color: '#131A48', marginBottom: '0.7rem', paddingBottom: 6, borderBottom: '2px solid #FF5800', display: 'inline-block' },
+  resultsHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' },
+  toggle:  { display: 'inline-flex', border: '1px solid #131A48', borderRadius: 4, overflow: 'hidden' },
+  toggleOn:  { background: '#131A48', color: '#fff', border: 'none', padding: '0.35rem 0.8rem', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+  toggleOff: { background: '#fff', color: '#131A48', border: 'none', padding: '0.35rem 0.8rem', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
   btn:     {
     background: '#FF5800', color: '#fff', border: 'none', borderRadius: 4,
     padding: '0.65rem 2rem', fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -152,6 +158,8 @@ export default function App() {
     () => (cartItems.length > 0 ? priceCart(cartItems, rules) : null),
     [cartItems, rules]
   )
+  const nudge = useMemo(() => (results ? nextCartOffer(results, rules) : null), [results, rules])
+  const [view, setView] = useState('merchant') // 'merchant' (engine detail) | 'customer' (checkout)
 
   // ── Handlers ──
   // A file that yields nothing usable never wipes out what is already loaded.
@@ -344,12 +352,33 @@ export default function App() {
         {/* Results — recalculated automatically */}
         {results ? (
           <div style={S.section}>
-            <div style={S.sectionTitle}>Cart Summary</div>
+            <div style={S.resultsHeader}>
+              <div style={S.sectionTitle}>Cart Summary</div>
+              <div role="group" aria-label="Choose view" style={S.toggle}>
+                {[['merchant', 'Merchant view'], ['customer', 'Customer view']].map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={view === key}
+                    onClick={() => setView(key)}
+                    style={view === key ? S.toggleOn : S.toggleOff}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
             {rules.length === 0 && (
               <div style={S.hint}>No discount rules loaded yet — showing base prices.</div>
             )}
-            <DataTable columns={RESULTS_COLUMNS} rows={results.items} />
-            <CartSummary pricing={results} />
+            {view === 'customer' ? (
+              <CheckoutView pricing={results} nudge={nudge} />
+            ) : (
+              <>
+                <DataTable columns={RESULTS_COLUMNS} rows={results.items} />
+                <CartSummary pricing={results} nudge={nudge} />
+              </>
+            )}
           </div>
         ) : (
           <div style={{ ...S.hint, textAlign: 'center', marginBottom: '1.2rem' }}>

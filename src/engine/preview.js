@@ -1,13 +1,43 @@
 /**
  * preview.js
  *
- * "What would this rule change?" — prices the cart with and without a candidate
- * rule and reports the difference. Built on priceCart(); it does not change how
- * discounts are calculated.
+ * What-if questions answered with the engine, without changing how discounts
+ * are calculated:
+ *   previewRule()   — what would adding this rule change?
+ *   nextCartOffer() — how much more would this cart need for a (better) cart offer?
  */
 
-import { priceCart, ruleMatchesItem } from './discountEngine.js'
-import { formatRupees as rs } from './format.js'
+import { priceCart, ruleMatchesItem, applyCartRules } from './discountEngine.js'
+import { formatRupees as rs, formatRuleValue } from './format.js'
+
+/**
+ * The nearest cart offer this cart hasn't reached yet, if reaching it would give
+ * a bigger cart discount than the cart gets now — e.g. a Rs.3,433 cart is Rs.567
+ * short of RULE-04 (10% off at Rs.4,000). Like the offer itself, the minimum is
+ * measured on the subtotal after item discounts.
+ * Returns { ruleId, shortfall, minCartValue, offer } or null.
+ */
+export function nextCartOffer(pricing, rules) {
+  const currentSaving = pricing.cartOffer?.totalDiscount ?? 0
+
+  const reachable = rules
+    .filter((r) => r.scope === 'cart' && r.minCartValue > pricing.subtotal)
+    .map((rule) => {
+      const atMinimum = applyCartRules(rule.minCartValue, rules)
+      return {
+        rule,
+        shortfall: rule.minCartValue - pricing.subtotal,
+        saving: atMinimum?.totalDiscount ?? 0,
+        wouldApply: atMinimum?.appliedRules.includes(rule.ruleId) ?? false,
+      }
+    })
+    .filter((c) => c.wouldApply && c.saving > currentSaving)
+    .sort((a, b) => a.shortfall - b.shortfall)
+
+  const next = reachable[0]
+  if (!next) return null
+  return { ruleId: next.rule.ruleId, shortfall: next.shortfall, minCartValue: next.rule.minCartValue, offer: formatRuleValue(next.rule) }
+}
 
 /** Differences between two pricings of the same cart. */
 export function comparePricing(before, after) {

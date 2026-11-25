@@ -23,4 +23,21 @@ describe('CartSummary', () => {
     expect(html).toContain('Cart total')
     expect(html).toContain('Rs.3,999')
   })
+
+  it('adds a separate hint — not an offer line — when the cart is just below a minimum', () => {
+    const nudge = { ruleId: 'RULE-04', shortfall: 1, minCartValue: 4000, offer: '10% off' }
+    const pricing = priceCart([item({ basePrice: 3999 })], [RULE_04])
+    expect(renderToStaticMarkup(<CartSummary pricing={pricing} nudge={nudge} />))
+      .toContain('No cart offer yet: the cart is Rs.1 short of RULE-04 (10% off at Rs.4,000 or more).')
+    expect(renderToStaticMarkup(<CartSummary pricing={pricing} nudge={nudge} variant="customer" />))
+      .toContain('Add Rs.1 more to get 10% off your cart.')
+  })
+
+  it('uses checkout wording without rule IDs in the customer variant', () => {
+    const html = renderToStaticMarkup(<CartSummary pricing={priceCart(SAMPLE_CART, SAMPLE_RULES)} variant="customer" />)
+    expect(html).toContain('Items total')
+    expect(html).toContain('You pay')
+    expect(html).toContain('For carts of Rs.4,000 or more')
+    expect(html).not.toContain('RULE-04')
+  })
 })
