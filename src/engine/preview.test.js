@@ -72,6 +72,19 @@ describe('previewRule', () => {
     expect(previewRule([item({ platform: 'Amazon India' })], SAMPLE_RULES, rule).reason).toBe('The matching items already get an equal or better offer.')
   })
 
+  it('explains — instead of crashing — when a cart rule\'s discount rounds to nothing', () => {
+    const tiny = makeRule({ ruleId: 'RULE-05', scope: 'cart', type: 'percentage', value: 0.1, stackable: false, minCartValue: 100 })
+    const preview = previewRule([item({ platform: 'Noon', basePrice: 449 })], SAMPLE_RULES, tiny)
+    expect(preview.changed).toBe(false)
+    expect(preview.reason).toBe("On a Rs.449 cart, its discount rounds to less than Rs.1, so it wouldn't change the price.")
+  })
+
+  it('explains when an item rule\'s discount rounds to nothing on the matching items', () => {
+    const tiny = makeRule({ ruleId: 'RULE-05', scope: 'platform', appliesTo: 'Noon', type: 'percentage', value: 0.1, stackable: false })
+    expect(previewRule([item({ platform: 'Noon', basePrice: 449 })], [], tiny).reason)
+      .toBe("On the matching items, its discount rounds to less than Rs.1, so it wouldn't change the price.")
+  })
+
   it('returns null when there is no cart', () => {
     expect(previewRule([], SAMPLE_RULES, SAMPLE_RULES[0])).toBeNull()
   })

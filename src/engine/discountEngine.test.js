@@ -63,6 +63,21 @@ describe('customer-facing explanations and status', () => {
     expect(updated['ITEM-06'].finalPrice).toBe(719)
   })
 
+  it('says "same saving as", not "better than", when offers tie', () => {
+    const flat150 = makeRule({ ruleId: 'RULE-A', scope: 'brand', appliesTo: 'Natura Casa', type: 'flat', value: 150, stackable: false })
+    const pct15 = makeRule({ ruleId: 'RULE-B', scope: 'platform', appliesTo: 'Amazon India', type: 'percentage', value: 15, stackable: false })
+    const res = applyDiscounts(item({ brand: 'Natura Casa', platform: 'Amazon India', basePrice: 1000 }), [flat150, pct15])
+    expect(res.reasoning).toBe('Natura Casa offer: Rs.150 off (same saving as Amazon India 15% off)')
+  })
+
+  it('says "same saving as" when two offers both make the item free', () => {
+    const flat500 = makeRule({ ruleId: 'RULE-A', scope: 'brand', appliesTo: 'Nordic Basics', type: 'flat', value: 500, stackable: false })
+    const flat600 = makeRule({ ruleId: 'RULE-B', scope: 'platform', appliesTo: 'Amazon India', type: 'flat', value: 600, stackable: false })
+    const res = applyDiscounts(item({ brand: 'Nordic Basics', platform: 'Amazon India', basePrice: 449 }), [flat500, flat600])
+    expect(res.finalPrice).toBe(0)
+    expect(res.reasoning).toBe('Nordic Basics offer: Rs.500 off (limited to the item price) (same saving as Amazon India Rs.600 off)')
+  })
+
   it('says so when a flat offer is limited to the item price', () => {
     const nordicFlat500 = makeRule({ ruleId: 'RULE-X', scope: 'brand', appliesTo: 'Nordic Basics', type: 'flat', value: 500, stackable: false })
     const res = applyDiscounts(item({ brand: 'Nordic Basics', basePrice: 449 }), [nordicFlat500])

@@ -143,6 +143,7 @@ function shortOfferName(rule) {
 /**
  * Explains an item's price in one line, e.g.
  *   "Amazon India offer: 15% off (better than Natura Casa Rs.150 off)"
+ *   "Natura Casa offer: Rs.150 off (same saving as Amazon India 15% off)"
  *   "Natura Casa offer: Rs.150 off + Flipkart offer: 10% off"
  *   "No offers available for LivSpace Pro products on Noon"
  */
@@ -155,7 +156,14 @@ function explainItem(item, applied, skipped) {
       let text = ruleToReasoning(rule)
       if (rule.type === 'flat' && amount < rule.value) text += ' (limited to the item price)'
       if (i === 0 && skipped.length > 0 && !rule.stackable) {
-        text += ` (better than ${skipped.map(shortOfferName).join(', ')})`
+        // Losing offers are compared on the same base price the winner was chosen on.
+        const saving = (r) => calculateDiscountAmount(item.basePrice, r)
+        const worse = skipped.filter((r) => saving(r) < amount)
+        const tied = skipped.filter((r) => saving(r) >= amount)
+        const parts = []
+        if (worse.length > 0) parts.push(`better than ${worse.map(shortOfferName).join(', ')}`)
+        if (tied.length > 0) parts.push(`same saving as ${tied.map(shortOfferName).join(', ')}`)
+        text += ` (${parts.join('; ')})`
       }
       return text
     })

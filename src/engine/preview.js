@@ -7,7 +7,7 @@
  *   nextCartOffer() — how much more would this cart need for a (better) cart offer?
  */
 
-import { priceCart, ruleMatchesItem, applyCartRules } from './discountEngine.js'
+import { priceCart, ruleMatchesItem, applyCartRules, calculateDiscountAmount } from './discountEngine.js'
 import { formatRupees as rs, formatRuleValue } from './format.js'
 
 /**
@@ -56,15 +56,20 @@ export function comparePricing(before, after) {
 }
 
 function whyNoChange(rule, cartItems, before) {
+  const roundsToNothing = 'its discount rounds to less than Rs.1, so it wouldn\'t change the price.'
   if (rule.scope === 'cart') {
     if (before.subtotal < rule.minCartValue) {
       return `The cart total before cart offers is ${rs(before.subtotal)}, below this rule's ${rs(rule.minCartValue)} minimum, so it doesn't apply yet.`
     }
-    return `This cart already gets an equal or bigger cart offer (${before.cartOffer.appliedRules.join(', ')}), so this rule wouldn't change the price.`
+    if (calculateDiscountAmount(before.subtotal, rule) === 0) return `On a ${rs(before.subtotal)} cart, ${roundsToNothing}`
+    if (before.cartOffer) {
+      return `This cart already gets an equal or bigger cart offer (${before.cartOffer.appliedRules.join(', ')}), so this rule wouldn't change the price.`
+    }
+    return "This rule wouldn't change the price of the current cart."
   }
-  if (!cartItems.some((item) => ruleMatchesItem(item, rule))) {
-    return 'No items in the current cart match this rule.'
-  }
+  const matching = cartItems.filter((item) => ruleMatchesItem(item, rule))
+  if (matching.length === 0) return 'No items in the current cart match this rule.'
+  if (matching.every((item) => calculateDiscountAmount(item.basePrice, rule) === 0)) return `On the matching items, ${roundsToNothing}`
   return 'The matching items already get an equal or better offer.'
 }
 
