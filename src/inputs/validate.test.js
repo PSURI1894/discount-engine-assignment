@@ -1,0 +1,68 @@
+import { describe, it, expect } from 'vitest'
+import { parseNumber, parseBoolean, validateRule, validateCartItem } from './validate.js'
+
+describe('parseNumber', () => {
+  it.each([
+    [1299, 1299],
+    ['1299', 1299],
+    ['1,299', 1299],
+    ['Rs.1,299', 1299],
+    ['Rs. 1,299', 1299],
+    ['₹1,299.50', 1299.5],
+    ['1,29,999', 129999],
+    ['15%', 15],
+  ])('%s → %s', (input, expected) => {
+    expect(parseNumber(input)).toBe(expected)
+  })
+
+  it.each(['', 'abc', 'Rs.abc', '-5', '12-3', null, undefined, NaN])('rejects %s', (input) => {
+    expect(parseNumber(input)).toBeNull()
+  })
+})
+
+describe('parseBoolean', () => {
+  it('accepts common spellings and refuses to guess otherwise', () => {
+    expect(parseBoolean('TRUE')).toBe(true)
+    expect(parseBoolean('no')).toBe(false)
+    expect(parseBoolean(false)).toBe(false)
+    expect(parseBoolean('ture')).toBeNull()
+    expect(parseBoolean('')).toBeNull()
+  })
+})
+
+describe('validateRule', () => {
+  const good = { ruleId: 'RULE-01', scope: 'Platform', appliesTo: ' Amazon India ', type: 'percentage', value: '15', stackable: 'false' }
+
+  it('normalises a valid rule', () => {
+    expect(validateRule(good)).toEqual({
+      parsed: { ruleId: 'RULE-01', scope: 'platform', appliesTo: 'Amazon India', type: 'percentage', value: 15, stackable: false },
+    })
+  })
+
+  it('lists every problem at once', () => {
+    const { errors } = validateRule({ ruleId: '', scope: 'brand', appliesTo: '', type: 'bogo', value: '0', stackable: 'maybe' })
+    expect(errors).toEqual([
+      'rule ID is missing',
+      'a brand rule must say which brand it applies to',
+      'type must be "percentage" or "flat", got "bogo"',
+      'value must be a positive number, got "0"',
+      'stackable must be true or false, got "maybe"',
+    ])
+  })
+
+  it('rejects an unknown scope', () => {
+    expect(validateRule({ ...good, scope: 'category' }).errors).toEqual(['scope must be "brand" or "platform", got "category"'])
+  })
+})
+
+describe('validateCartItem', () => {
+  it('rounds the base price to whole rupees', () => {
+    const { parsed } = validateCartItem({ itemId: 'ITEM-01', product: 'Cushion Cover', brand: 'Natura Casa', platform: 'Amazon India', basePrice: 'Rs.1,299.40' })
+    expect(parsed.basePrice).toBe(1299)
+  })
+
+  it('rejects missing fields and bad prices', () => {
+    const { errors } = validateCartItem({ itemId: 'ITEM-01', product: '', brand: 'X', platform: 'Y', basePrice: 'free' })
+    expect(errors).toEqual(['product is missing', 'base price must be a positive number, got "free"'])
+  })
+})
