@@ -53,6 +53,19 @@ describe('parseCartTable', () => {
     expect(res.skipped).toEqual([])
   })
 
+  it('keeps products whose names start like a summary line ("Item…", "Total…"), but ignores real summary lines', () => {
+    const res = parseCartTable([
+      HEADER,
+      row(680, 'Item Holder', 'Nordic Basics', 'Flipkart', 'Rs.299'),
+      row(660, 'Total Gym Mat', 'Nordic Basics', 'Amazon India', 'Rs.1,499'),
+      line(640, piece('Delivery charges', 50), piece('Rs.49', 410)),
+      line(620, piece('Total', 50), piece('Rs.1,798', 410)),
+    ])
+    expect(res.items.map((i) => i.product)).toEqual(['Item Holder', 'Total Gym Mat'])
+    expect(res.ignoredLines).toEqual(['Delivery charges  Rs.49', 'Total  Rs.1,798'])
+    expect(res.skipped).toEqual([])
+  })
+
   it('skips a malformed row with its reason and keeps the good ones', () => {
     const res = parseCartTable([
       HEADER,

@@ -27,7 +27,9 @@ const COLUMNS = [
 ]
 
 const SEPARATOR = /^[\s\-–—_=─━.·•*|]+$/
-const NON_ITEM = /^(sub-?total|total|grand total|order total|amount( due)?|items?\b|page \d+|thank you)/i
+// Summary/footer wording. Only treated as a non-item line when the row also has
+// no brand or platform — so a product called "Item Holder" or "Total Gym Mat" is still an item.
+const NON_ITEM = /^(sub-?total|total|grand total|order total|net payable|amount( due| paid)?|items?\b|page \d+|thank you|delivery|shipping|tax|gst|discount|coupon)/i
 
 /**
  * Splits a line's text pieces into cells: runs of two or more spaces separate
@@ -121,13 +123,14 @@ export function parseCartTable(lines) {
     }
 
     if (SEPARATOR.test(text)) continue
-    if (NON_ITEM.test(cells[0].text)) {
+
+    const row = toRow(cells, header)
+    if (NON_ITEM.test(cells[0].text) && (!row.brand || !row.platform)) {
       result.ignoredLines.push(text)
       continue
     }
 
     rowNumber += 1
-    const row = toRow(cells, header)
     const check = validateCartItem({ itemId: `ITEM-${String(rowNumber).padStart(2, '0')}`, ...row })
     if (check.errors) {
       result.skipped.push({ row: rowNumber, text, reason: check.errors.join('; ') })
