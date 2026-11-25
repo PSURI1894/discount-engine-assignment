@@ -17,6 +17,7 @@ import { parseRulesCSV, parseCartCSV } from './inputs/csvInput.js'
 import { readPdfCart } from './inputs/pdfCartInput.js'
 import { nextRuleId, renumberAddedRules } from './inputs/ruleIds.js'
 import CheckoutView from './components/CheckoutView.jsx'
+import { SAMPLE_RULES_CSV, SAMPLE_CART_CSV, SAMPLE_FILES } from './sampleData.js'
 import { priceCart } from './engine/discountEngine.js'
 import { nextCartOffer } from './engine/preview.js'
 import { formatRupees as rs, formatRuleValue } from './engine/format.js'
@@ -111,6 +112,9 @@ const S = {
   hint:    { fontSize: 12, color: '#888', marginBottom: '0.6rem' },
   linkBtn: { background: 'none', border: 'none', padding: 0, color: '#c0392b', fontSize: 11, textDecoration: 'underline', cursor: 'pointer' },
   addedTag: { fontSize: 10, color: '#888', marginTop: 2 },
+  sampleBar: { display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap', fontSize: 12, color: '#555', marginBottom: '1rem' },
+  sampleBtn: { background: '#FF5800', color: '#fff', border: 'none', borderRadius: 4, padding: '0.45rem 1rem', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
+  sampleLink: { color: '#1a3e8c' },
   notice:  { background: '#eef6f0', border: '1px solid #b9dcc3', borderRadius: 4, padding: '0.5rem 0.7rem', marginTop: '0.5rem', fontSize: 12, color: '#1e5c2c' },
   tag: (color, bg) => ({
     display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
@@ -211,6 +215,11 @@ export default function App() {
         }
   )
 
+  function loadSampleData() {
+    handleRulesLoad(SAMPLE_RULES_CSV, 'rules.csv (sample)')
+    handleCartLoad(SAMPLE_CART_CSV, 'cart.csv (sample)')
+  }
+
   const keptCartNote = () =>
     cartItems.length > 0 ? ['Nothing was loaded from this file, so the previous cart is unchanged.'] : []
 
@@ -272,6 +281,20 @@ export default function App() {
       </div>
 
       <div style={S.main}>
+
+        {/* Sample data, so the live site can be tried without cloning the repo */}
+        <div style={S.sampleBar}>
+          <button type="button" style={S.sampleBtn} onClick={loadSampleData}>Load sample data</button>
+          <span>
+            or download the sample files to try the uploads:{' '}
+            {SAMPLE_FILES.map((f, i) => (
+              <span key={f.name}>
+                {i > 0 && ' · '}
+                <a href={f.url} download={f.name} style={S.sampleLink} title={f.note}>{f.name}</a>
+              </span>
+            ))}
+          </span>
+        </div>
 
         {/* Upload row */}
         <div className="upload-grid">

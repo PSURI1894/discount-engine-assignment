@@ -68,6 +68,25 @@ async function parse(text) {
   fireEvent.click(screen.getByRole('button', { name: 'Parse rule' }))
 }
 
+describe('sample data on the page', () => {
+  it('loads the sample rules and cart in one click, through the normal CSV adapter', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Load sample data' }))
+    await screen.findByText('Final cart total')
+    expect(finalTotal()).toBe('Rs.5,339')
+    expect(screen.getByText('rules.csv (sample)')).toBeTruthy()
+  })
+
+  it('offers every sample file for download', () => {
+    render(<App />)
+    for (const name of ['rules.csv', 'cart.csv', 'cart.pdf', 'cart-small-order.pdf', 'cart-with-errors.pdf']) {
+      const link = screen.getByRole('link', { name })
+      expect(link.getAttribute('download')).toBe(name)
+      expect(link.getAttribute('href')).toBeTruthy()
+    }
+  })
+})
+
 describe('loading the sample files', () => {
   it('shows the brief\'s expected results straight away', async () => {
     await loadSampleData()
