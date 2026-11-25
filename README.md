@@ -178,7 +178,7 @@ belongs to finance and the merchant, not just engineering:
 
 | Command | What it does |
 |---|---|
-| `npm test` | 286 unit, server and UI-flow tests (also run in CI) |
+| `npm test` | 287 unit, server and UI-flow tests (also run in CI) |
 | `npm run eval:parser` | scores the parser on the evaluation set: the LLM if a key is set (retrying rate limits), otherwise the rule-based parser; prints a README row. Add a URL to score a deployment instead, so the key stays in Vercel |
 | `npm run check:llm` | checks that the LLM in `.env` answers correctly, and explains what's wrong if not; add a URL to check a deployment |
 | `npm run check:browser` | with the app running, drives a local Chrome/Edge through the main flows (20 checks); set `BASE_URL` to check a deployment |
@@ -204,10 +204,23 @@ not accuracy on unseen text:
 | Parser | Score | Wrong rules |
 |---|---|---|
 | Rule-based | 48/49 | 0 (it asks instead of guessing at number words like "a hundred rupees") |
+| LLM: Groq `openai/gpt-oss-20b` (free tier) | 48/49 | 1 (see below) |
 
-On 25 further phrasings written after those fixes, it returned no wrong rules. The number that
-matters is the LLM's: run `npm run eval:parser` with a key. It retries rate limits, leaves out any case
-the LLM never answered (rather than scoring the fallback's answer), and prints the row for this table.
+On 25 further phrasings written after those fixes, the rule-based parser returned no wrong rules.
+
+**The LLM's result is the real measurement**, because the model never saw these cases. It read "Knock a
+hundred rupees off anything sold on Flipkart" correctly, which the rule-based parser refuses. It also
+refused every unsafe case: brand plus platform, "except", "3+ items", a cart minimum on a brand offer,
+150%, and the prompt injection.
+
+**Its one wrong rule** was "Exclusive deal: 10% off Natura Casa, stackable with other offers". The
+model returned *stackable* and ignored the contradiction with "exclusive". The rule-based parser does
+detect the contradiction, but the confirmation card's cross-check wasn't passing that on. It is now:
+the card shows "A rule-based check found this description contradictory … Check the Stackable field
+before adding."
+
+`npm run eval:parser` retries rate limits (it hit the free-tier limit 11 times in this run and scored
+every case anyway), leaves out any case the LLM never answers, and prints the row for this table.
 
 ### Review findings
 
