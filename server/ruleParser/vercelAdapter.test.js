@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import handler from './parse-rule.js'
+// Lives outside api/: Vercel turns every file in api/ into a serverless function.
+import handler from '../../api/parse-rule.js'
 
 function fakeRes() {
   const res = { statusCode: 200, headers: {}, body: undefined }
