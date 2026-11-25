@@ -179,7 +179,7 @@ belongs to finance and the merchant, not just engineering:
 | Command | What it does |
 |---|---|
 | `npm test` | 286 unit, server and UI-flow tests (also run in CI) |
-| `npm run eval:parser` | scores the parser on the evaluation set: the LLM if a key is set (retrying rate limits), otherwise the rule-based parser; prints a README row |
+| `npm run eval:parser` | scores the parser on the evaluation set: the LLM if a key is set (retrying rate limits), otherwise the rule-based parser; prints a README row. Add a URL to score a deployment instead, so the key stays in Vercel |
 | `npm run check:llm` | checks that the LLM in `.env` answers correctly, and explains what's wrong if not; add a URL to check a deployment |
 | `npm run check:browser` | with the app running, drives a local Chrome/Edge through the main flows (20 checks); set `BASE_URL` to check a deployment |
 | `npm run make:pdfs` | regenerates the sample PDFs |
@@ -276,6 +276,7 @@ models your key can use).
 
    ```bash
    npm run check:llm -- https://your-app.vercel.app             # is the live site using the LLM?
+   npm run eval:parser -- https://your-app.vercel.app           # score the live LLM on the evaluation set
    BASE_URL=https://your-app.vercel.app npm run check:browser   # the whole app, in a real browser
    ```
 
