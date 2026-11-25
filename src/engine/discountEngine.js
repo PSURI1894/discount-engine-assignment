@@ -95,11 +95,17 @@ export function calculateDiscountAmount(price, rule) {
  *   1. Among non-stackable rules, the one giving the largest rupee saving wins.
  *      Ties go to the rule listed first.
  *   2. Stackable rules then apply on top, each on the already-reduced price.
+ *      Percentages go before flat amounts: taking 10% before Rs.100 off always
+ *      saves the customer more than the reverse, and it makes the result
+ *      independent of the order rules were loaded or added in.
  * Returns { price, applied: [{ rule, amount }], skipped: DiscountRule[] }.
  */
 function pickAndApply(startPrice, rules) {
   const nonStackable = rules.filter((r) => !r.stackable)
-  const stackable = rules.filter((r) => r.stackable)
+  const stackable = [
+    ...rules.filter((r) => r.stackable && r.type === 'percentage'),
+    ...rules.filter((r) => r.stackable && r.type !== 'percentage'),
+  ]
 
   // Array.prototype.sort is stable, so equal savings keep their original order.
   const [winner, ...skipped] = [...nonStackable].sort(

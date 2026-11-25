@@ -137,6 +137,26 @@ describe('cart-level offers', () => {
   })
 })
 
+describe('stacking order', () => {
+  const pct10 = makeRule({ ruleId: 'RULE-P', scope: 'platform', appliesTo: 'Test Platform', type: 'percentage', value: 10, stackable: true })
+  const flat100 = makeRule({ ruleId: 'RULE-F', scope: 'brand', appliesTo: 'Test Brand', type: 'flat', value: 100, stackable: true })
+
+  it('applies stackable percentages before flat amounts, whatever order the rules are in', () => {
+    // 1000 → 10% off → 900 → Rs.100 off → 800 (flat first would give 810)
+    for (const rules of [[pct10, flat100], [flat100, pct10]]) {
+      const res = applyDiscounts(item({ basePrice: 1000 }), rules)
+      expect(res.finalPrice).toBe(800)
+      expect(res.appliedRules).toEqual(['RULE-P', 'RULE-F'])
+    }
+  })
+
+  it('still applies the winning non-stackable rule first (brief: ITEM-02)', () => {
+    const res = applyDiscounts(SAMPLE_CART[1], SAMPLE_RULES)
+    expect(res.appliedRules).toEqual(['RULE-02', 'RULE-03'])
+    expect(res.finalPrice).toBe(629)
+  })
+})
+
 describe('discounts never take a price below zero', () => {
   const nordicFlat500 = { ruleId: 'RULE-X', scope: 'brand', appliesTo: 'Nordic Basics', type: 'flat', value: 500, stackable: false }
 
