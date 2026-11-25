@@ -6,7 +6,7 @@
  * Wires together input adapters → engine → display.
  */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import FileUploader from './components/FileUploader.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
@@ -149,6 +149,7 @@ export default function App() {
   const [cartNotice, setCartNotice] = useState(null) // what the last PDF import did
   const [pdfBusy, setPdfBusy]       = useState(false)
   const [pdfReview, setPdfReview]   = useState(null) // { fileName, result } awaiting a decision
+  const latestCartLoad = useRef(0)  // increments on every cart upload; older PDF results are ignored
 
   const rules = useMemo(() => [...fileRules, ...addedRules], [fileRules, addedRules])
   const addedIds = useMemo(() => new Set(addedRules.map((r) => r.ruleId)), [addedRules])
@@ -221,6 +222,8 @@ export default function App() {
   }
 
   function handleCartLoad(csvText, fileName) {
+    latestCartLoad.current += 1 // any PDF still being read is now out of date
+    setPdfBusy(false)
     const { data, errors } = parseCartCSV(csvText)
     setPdfReview(null)
     if (data.length === 0) {
@@ -233,9 +236,12 @@ export default function App() {
   // A fully readable PDF replaces the cart at once; a partly readable one is
   // shown for review first; an unreadable one leaves the cart as it was.
   async function handleCartPdf(buffer, fileName) {
+    const loadId = ++latestCartLoad.current
     setPdfBusy(true)
     setPdfReview(null)
     const result = await readPdfCart(buffer)
+    // Reading a PDF takes a moment; if another cart was loaded meanwhile, this result is stale.
+    if (loadId !== latestCartLoad.current) return
     setPdfBusy(false)
 
     if (result.fileError) {

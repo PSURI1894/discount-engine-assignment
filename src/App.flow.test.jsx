@@ -12,10 +12,18 @@ import App from './App.jsx'
 import { handleParseRule } from '../server/ruleParser/handler.js'
 
 // Real pdf.js, but its Node build — there is no browser worker under jsdom.
+// pdfTiming.delayMs lets a test make PDF reading slow.
+const pdfTiming = vi.hoisted(() => ({ delayMs: 0 }))
 vi.mock('./inputs/pdfText.js', async (importOriginal) => {
   const actual = await importOriginal()
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  return { ...actual, extractPdfLines: (data) => actual.extractPdfLines(data, pdfjs) }
+  return {
+    ...actual,
+    extractPdfLines: async (data) => {
+      if (pdfTiming.delayMs) await new Promise((r) => setTimeout(r, pdfTiming.delayMs))
+      return actual.extractPdfLines(data, pdfjs)
+    },
+  }
 })
 
 // import.meta.url isn't a file URL under jsdom, so resolve from the project root.
@@ -216,6 +224,21 @@ describe('uploading a cart PDF', () => {
     fireEvent.click(within(await screen.findByRole('region', { name: 'Review cart PDF' })).getByRole('button', { name: 'Replace cart with 4 items' }))
     expect(amountToPay()).toBe('Rs.2,924')
     expect(screen.getByRole('status').textContent).toMatch(/Row 3 skipped/)
+  })
+
+  it('ignores a slow PDF that finishes after a newer cart was loaded', async () => {
+    await loadSampleData()
+    pdfTiming.delayMs = 300
+    try {
+      uploadPdf('cart-small-order.pdf')
+      upload(screen.getByLabelText('Upload cart.csv'), 'cart.csv') // the newer cart
+      await new Promise((r) => setTimeout(r, 700))
+    } finally {
+      pdfTiming.delayMs = 0
+    }
+    expect(screen.queryByText(/Loaded 3 items/)).toBeNull()
+    expect(screen.queryAllByText('Throw Blanket')).toHaveLength(0)
+    expect(finalTotal()).toBe('Rs.5,339')
   })
 
   it('leaves the cart alone when the file is not a readable PDF', async () => {
