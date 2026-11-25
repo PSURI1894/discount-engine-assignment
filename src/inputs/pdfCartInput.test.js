@@ -82,6 +82,55 @@ describe('parseCartTable', () => {
     ])
   })
 
+  it('keeps the values of unrecognised columns out of their neighbours, and lists those columns', () => {
+    const header = line(700, piece('Product', 50), piece('Brand', 160), piece('Category', 260), piece('Platform', 340), piece('Base Price', 440))
+    const res = parseCartTable([
+      header,
+      line(680, piece('Cushion Cover', 50), piece('Natura Casa', 160), piece('Decor', 260), piece('Amazon India', 340), piece('Rs.1,299', 440)),
+    ])
+    expect(res.items).toEqual([{ itemId: 'ITEM-01', product: 'Cushion Cover', brand: 'Natura Casa', platform: 'Amazon India', basePrice: 1299 }])
+    expect(res.ignoredColumns).toEqual(['Category'])
+  })
+
+  it('prefers "Price" over "MRP" when both are present', () => {
+    const header = line(700, piece('Product', 50), piece('Brand', 160), piece('Platform', 260), piece('MRP', 360), piece('Price', 440))
+    const res = parseCartTable([header, line(680, piece('Vase', 50), piece('LivSpace Pro', 160), piece('Noon', 260), piece('1,499', 360), piece('1,299', 440))])
+    expect(res.items[0].basePrice).toBe(1299)
+    expect(res.ignoredColumns).toEqual(['MRP'])
+  })
+
+  it('skips a row whose quantity is not 1, instead of pricing it as one unit', () => {
+    const header = line(700, piece('Product', 50), piece('Brand', 160), piece('Platform', 260), piece('Base Price', 360), piece('Qty', 460))
+    const res = parseCartTable([
+      header,
+      line(680, piece('Cushion Cover', 50), piece('Natura Casa', 160), piece('Amazon India', 260), piece('Rs.1,299', 360), piece('2', 460)),
+      line(660, piece('Wall Shelf', 50), piece('LivSpace Pro', 160), piece('Amazon India', 260), piece('Rs.599', 360), piece('1', 460)),
+    ])
+    expect(res.items.map((i) => [i.product, i.basePrice])).toEqual([['Wall Shelf', 599]])
+    expect(res.skipped[0].reason).toBe('quantity is 2; the engine prices one unit per line, so list each unit on its own line')
+  })
+
+  it('reads right-aligned prices under a short right-aligned "Price" heading', () => {
+    const header = line(700, piece('Product', 50), piece('Brand', 190), piece('Platform', 300), piece('Price', 460))
+    const res = parseCartTable([header, line(680, piece('Sofa', 50), piece('LivSpace Pro', 190), piece('Flipkart', 300), piece('Rs.12,99,999', 418))])
+    expect(res.items[0]).toMatchObject({ platform: 'Flipkart', basePrice: 1299999 })
+  })
+
+  it('keeps an item row that starts like a summary but is only missing its platform (so it is reviewed)', () => {
+    const res = parseCartTable([HEADER, row(680, 'Discount Card Holder', 'Nordic Basics', '', 'Rs.199')])
+    expect(res.skipped).toEqual([{ row: 1, text: 'Discount Card Holder  Nordic Basics  Rs.199', reason: 'platform is missing' }])
+    expect(res.ignoredLines).toEqual([])
+  })
+
+  it.each([
+    ['Order #OP-9921 | Date: 15 Jan 2025', 'OP-9921'],
+    ['Order No: OP-9921', 'OP-9921'],
+    ['Order Summary', null],
+    ['Order Date: 15 Jan 2025', null],
+  ])('reads the order reference from "%s"', (title, ref) => {
+    expect(parseCartTable([line(750, piece(title, 50)), HEADER, row(680, 'Vase', 'LivSpace Pro', 'Noon', 'Rs.2,499')]).orderRef).toBe(ref)
+  })
+
   it('reports a missing header', () => {
     expect(parseCartTable([row(680, 'Cushion Cover', 'Natura Casa', 'Amazon India', 'Rs.1,299')]).fileError)
       .toMatch(/Couldn't find the table header/)
@@ -125,6 +174,20 @@ describe('readPdfCart with real PDFs', () => {
     expect(res.items.map((i) => i.itemId)).toEqual(['ITEM-01', 'ITEM-02', 'ITEM-05', 'ITEM-06'])
     expect(res.skipped.map((s) => s.reason)).toEqual(['base price must be a positive number, got "Rs.abc"', 'platform is missing'])
     expect(res.ignoredLines).toEqual(['Total  Rs.5,932'])
+  })
+
+  it('does not merge a Qty column into the price in a real PDF (Rs.1,299 with Qty 2 is not Rs.12,992)', async () => {
+    const res = await read({
+      title: 'Order #OP-9950',
+      header: ['Product', 'Brand', 'Platform', 'Base Price', 'Qty'],
+      columnX: [50, 170, 270, 370, 460],
+      rows: [
+        ['Cushion Cover', 'Natura Casa', 'Amazon India', 'Rs.1,299', '2'],
+        ['Wall Shelf', 'LivSpace Pro', 'Amazon India', 'Rs.599', '1'],
+      ],
+    })
+    expect(res.items).toEqual([{ itemId: 'ITEM-02', product: 'Wall Shelf', brand: 'LivSpace Pro', platform: 'Amazon India', basePrice: 599 }])
+    expect(res.skipped.map((s) => s.reason)).toEqual(['quantity is 2; the engine prices one unit per line, so list each unit on its own line'])
   })
 
   it('explains a PDF with no text layer (e.g. a scan)', async () => {

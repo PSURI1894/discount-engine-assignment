@@ -14,22 +14,31 @@
  * footers are ignored. The caller decides what to do with a partial result.
  */
 
-import { validateCartItem } from './validate.js'
+import { validateCartItem, parseNumber } from './validate.js'
 import { extractPdfLines, PdfReadError } from './pdfText.js'
 
 export const MAX_PDF_BYTES = 5 * 1024 * 1024
 
+// Recognised headings. Several can mean the price; the lowest rank wins, so MRP
+// is only used when there is no "Base Price" or "Price" column.
 const COLUMNS = [
-  { key: 'product', label: 'Product', pattern: /^(product|product name|item|description)$/i },
-  { key: 'brand', label: 'Brand', pattern: /^brand$/i },
-  { key: 'platform', label: 'Platform', pattern: /^(platform|marketplace|channel)$/i },
-  { key: 'basePrice', label: 'Base Price', pattern: /^(base price|price|mrp)(\s*\(.*\))?$/i },
+  { key: 'product', pattern: /^(product|product name|item|item name|description)$/i },
+  { key: 'brand', pattern: /^brand$/i },
+  { key: 'platform', pattern: /^(platform|marketplace|channel)$/i },
+  { key: 'basePrice', rank: 0, pattern: /^base price(\s*\(.*\))?$/i },
+  { key: 'basePrice', rank: 1, pattern: /^(price|selling price|unit price)(\s*\(.*\))?$/i },
+  { key: 'basePrice', rank: 2, pattern: /^mrp(\s*\(.*\))?$/i },
+  { key: 'quantity', pattern: /^(qty|quantity|units)$/i },
 ]
+const REQUIRED = { product: 'Product', brand: 'Brand', platform: 'Platform', basePrice: 'Base Price' }
+const EXPECTED = Object.values(REQUIRED).join(', ')
 
 const SEPARATOR = /^[\s\-–—_=─━.·•*|]+$/
-// Summary/footer wording. Only treated as a non-item line when the row also has
-// no brand or platform — so a product called "Item Holder" or "Total Gym Mat" is still an item.
+// Summary/footer wording. Only treated as a non-item line when the row has neither
+// a brand nor a platform — so a product called "Item Holder" or "Total Gym Mat" is still an item.
 const NON_ITEM = /^(sub-?total|total|grand total|order total|net payable|amount( due| paid)?|items?\b|page \d+|thank you|delivery|shipping|tax|gst|discount|coupon)/i
+// "Order #OP-9921", "Order No: OP-9921" — the reference must contain a digit, so "Order Summary" isn't one.
+const ORDER_REF = /order\s*(?:no\.?|number|id|ref(?:erence)?)?\s*[:#.-]?\s*#?\s*([a-z]*-?\d[\w-]*)/i
 
 /**
  * Splits a line's text pieces into cells: runs of two or more spaces separate
@@ -66,37 +75,69 @@ function toCells(line) {
 
 const lineText = (cells) => cells.map((c) => c.text).join('  ')
 
-/** Matches a line's cells against the expected column headings. */
+/**
+ * Treats every cell of a candidate header line as a column. Recognised headings
+ * get a key; anything else (Qty is recognised, but e.g. Category, SKU, a second
+ * price column) is kept as an ignored column, so its values can't leak into a
+ * neighbouring column.
+ */
 function readHeader(cells) {
-  const found = []
-  for (const cell of cells) {
-    const column = COLUMNS.find((c) => c.pattern.test(cell.text.trim()))
-    if (column && !found.some((f) => f.key === column.key)) {
-      found.push({ key: column.key, x: cell.x, charWidth: cell.charWidth })
-    }
+  const columns = cells.map((cell) => {
+    const def = COLUMNS.find((c) => c.pattern.test(cell.text.trim()))
+    return { key: def?.key ?? null, rank: def?.rank ?? 0, label: cell.text.trim(), x: cell.x, end: cell.end }
+  })
+  // One column per key: keep the best-ranked (then leftmost); the others are ignored.
+  for (const col of columns) {
+    if (!col.key) continue
+    const better = columns.find((o) => o !== col && o.key === col.key && (o.rank < col.rank || (o.rank === col.rank && o.x < col.x)))
+    if (better) col.key = null
   }
-  return found
+  return columns
 }
 
-/** Assigns each cell to the column whose heading starts at or just before it. */
-function toRow(cells, header) {
-  const columns = [...header].sort((a, b) => a.x - b.x)
+/**
+ * Assigns each cell to the column it overlaps most. Column boundaries sit halfway
+ * between neighbouring headings, which works for left- and right-aligned tables.
+ */
+function toRow(cells, columns) {
+  const sorted = [...columns].sort((a, b) => a.x - b.x)
+  const spans = sorted.map((col, i) => ({
+    col,
+    start: i === 0 ? -Infinity : (sorted[i - 1].end + col.x) / 2,
+    end: i === sorted.length - 1 ? Infinity : (col.end + sorted[i + 1].x) / 2,
+  }))
   const row = {}
   for (const cell of cells) {
-    const tolerance = Math.max(4, 2 * cell.charWidth)
-    let column = columns[0]
-    for (const c of columns) if (c.x <= cell.x + tolerance) column = c
-    row[column.key] = row[column.key] ? `${row[column.key]} ${cell.text}` : cell.text
+    let best = spans[0]
+    let bestOverlap = -Infinity
+    for (const span of spans) {
+      const overlap = Math.min(cell.end, span.end) - Math.max(cell.x, span.start)
+      if (overlap > bestOverlap) {
+        best = span
+        bestOverlap = overlap
+      }
+    }
+    const key = best.col.key ?? `ignored:${best.col.label}`
+    row[key] = row[key] ? `${row[key]} ${cell.text}` : cell.text
   }
   return row
 }
 
+/** A row's quantity, if the table has a quantity column: only 1 is supported. */
+function quantityProblem(row) {
+  if (row.quantity === undefined) return null
+  const quantity = parseNumber(row.quantity)
+  if (quantity === null) return `quantity "${row.quantity}" isn't a number`
+  if (quantity !== 1) return `quantity is ${quantity}; the engine prices one unit per line, so list each unit on its own line`
+  return null
+}
+
 /**
  * Turns text lines (from extractPdfLines) into cart items. Pure: no PDF library involved.
- * Returns { items, skipped: [{ row, text, reason }], ignoredLines: string[], orderRef, fileError? }.
+ * Returns { items, skipped: [{ row, text, reason }], ignoredLines, ignoredColumns, orderRef, fileError? }.
  */
 export function parseCartTable(lines) {
-  const result = { items: [], skipped: [], ignoredLines: [], orderRef: null }
+  const result = { items: [], skipped: [], ignoredLines: [], ignoredColumns: [], orderRef: null }
   let header = null
   let rowNumber = 0
 
@@ -104,43 +145,48 @@ export function parseCartTable(lines) {
     const cells = toCells(line)
     if (cells.length === 0) continue
     const text = lineText(cells)
-    const headings = readHeader(cells)
+    const columns = readHeader(cells)
+    const recognised = Object.keys(REQUIRED).filter((key) => columns.some((c) => c.key === key))
 
-    if (headings.length >= 2) {
+    if (recognised.length >= 2) {
       // A header row — the first one, or a repeat at the top of a later page.
-      const missing = COLUMNS.filter((c) => !headings.some((h) => h.key === c.key))
+      const missing = Object.keys(REQUIRED).filter((key) => !recognised.includes(key))
       if (missing.length > 0) {
-        return { ...result, fileError: `The table is missing column(s): ${missing.map((c) => c.label).join(', ')}. Expected: ${COLUMNS.map((c) => c.label).join(', ')}.` }
+        return { ...result, fileError: `The table is missing column(s): ${missing.map((k) => REQUIRED[k]).join(', ')}. Expected: ${EXPECTED}.` }
       }
-      header = headings
+      header = columns
+      for (const col of columns) {
+        if (!col.key && !result.ignoredColumns.includes(col.label)) result.ignoredColumns.push(col.label)
+      }
       continue
     }
 
     if (!header) {
       // Title lines above the table, e.g. "Order #OP-9921 | Date: 15 Jan 2025".
-      result.orderRef ??= text.match(/order\s*(?:no\.?|number)?\s*#?\s*([A-Z0-9][\w-]*)/i)?.[1] ?? null
+      result.orderRef ??= text.match(ORDER_REF)?.[1] ?? null
       continue
     }
 
     if (SEPARATOR.test(text)) continue
 
     const row = toRow(cells, header)
-    if (NON_ITEM.test(cells[0].text) && (!row.brand || !row.platform)) {
+    if (NON_ITEM.test(cells[0].text) && !row.brand && !row.platform) {
       result.ignoredLines.push(text)
       continue
     }
 
     rowNumber += 1
     const check = validateCartItem({ itemId: `ITEM-${String(rowNumber).padStart(2, '0')}`, ...row })
-    if (check.errors) {
-      result.skipped.push({ row: rowNumber, text, reason: check.errors.join('; ') })
+    const problems = [...(check.errors ?? []), ...[quantityProblem(row)].filter(Boolean)]
+    if (problems.length > 0) {
+      result.skipped.push({ row: rowNumber, text, reason: problems.join('; ') })
     } else {
       result.items.push(check.parsed)
     }
   }
 
   if (!header) {
-    return { ...result, fileError: `Couldn't find the table header in this PDF. Expected a row with: ${COLUMNS.map((c) => c.label).join(', ')}.` }
+    return { ...result, fileError: `Couldn't find the table header in this PDF. Expected a row with: ${EXPECTED}.` }
   }
   if (result.items.length === 0) {
     return { ...result, fileError: 'No cart items could be read from this PDF.' }
@@ -153,7 +199,7 @@ export function parseCartTable(lines) {
  * `pdfjs` can be injected (tests use pdf.js's Node build).
  */
 export async function readPdfCart(data, { pdfjs } = {}) {
-  const fail = (fileError) => ({ items: [], skipped: [], ignoredLines: [], orderRef: null, fileError })
+  const fail = (fileError) => ({ items: [], skipped: [], ignoredLines: [], ignoredColumns: [], orderRef: null, fileError })
 
   if (data.byteLength > MAX_PDF_BYTES) return fail('This PDF is larger than 5 MB. A cart PDF should be much smaller.')
 

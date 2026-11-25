@@ -122,13 +122,14 @@ const S = {
 
 const describeSkipped = (s) => `Row ${s.row} skipped (“${s.text}”): ${s.reason}`
 
-function pdfNotice(fileName, { items, skipped, ignoredLines, orderRef }) {
+function pdfNotice(fileName, { items, skipped, ignoredLines, ignoredColumns = [], orderRef }) {
   const order = orderRef ? ` (order #${orderRef})` : ''
   return {
     text: `Loaded ${items.length} item${items.length === 1 ? '' : 's'} from ${fileName}${order}.`,
     details: [
       ...skipped.map(describeSkipped),
       ...(ignoredLines.length > 0 ? [`Ignored (not items): ${ignoredLines.join('; ')}`] : []),
+      ...(ignoredColumns.length > 0 ? [`Ignored column${ignoredColumns.length === 1 ? '' : 's'}: ${ignoredColumns.join(', ')}`] : []),
     ],
   }
 }

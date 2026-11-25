@@ -20,7 +20,7 @@ const S = {
 }
 
 export default function PdfImportReview({ fileName, result, currentTotal, newTotal, onReplace, onCancel }) {
-  const { items, skipped, ignoredLines, orderRef } = result
+  const { items, skipped, ignoredLines, ignoredColumns = [], orderRef } = result
   const rowCount = items.length + skipped.length
 
   return (
@@ -38,6 +38,9 @@ export default function PdfImportReview({ fileName, result, currentTotal, newTot
 
       {ignoredLines.length > 0 && (
         <div style={S.muted}>Ignored (not items): {ignoredLines.join('; ')}</div>
+      )}
+      {ignoredColumns.length > 0 && (
+        <div style={S.muted}>Ignored column{ignoredColumns.length === 1 ? '' : 's'}: {ignoredColumns.join(', ')}</div>
       )}
 
       <div style={{ marginTop: '0.4rem' }}>

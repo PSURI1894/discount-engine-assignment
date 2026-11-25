@@ -18,22 +18,22 @@ const LINE_WIDTHS = [20, 16, 16]
 const FONT_SIZE = 10
 const HEADER = ['Product', 'Brand', 'Platform', 'Base Price']
 
-function drawRow(page, cells, y, font, layout) {
+function drawRow(page, cells, y, font, layout, columnX) {
   if (layout === 'lines') {
     const text = cells.map((c, i) => (i < LINE_WIDTHS.length ? (c ?? '').padEnd(LINE_WIDTHS[i]) : c ?? '')).join('')
-    page.drawText(text, { x: COLUMN_X[0], y, size: FONT_SIZE, font })
+    page.drawText(text, { x: columnX[0], y, size: FONT_SIZE, font })
   } else {
-    cells.forEach((c, i) => c && page.drawText(c, { x: COLUMN_X[i], y, size: FONT_SIZE, font }))
+    cells.forEach((c, i) => c && page.drawText(c, { x: columnX[i], y, size: FONT_SIZE, font }))
   }
 }
 
 /**
  * spec: { title, rows: string[][], footer?: string[][], layout?: 'cells' | 'lines',
- *         separator?: 'rule' | 'dashes', header?: string[], noText?: boolean }
+ *         separator?: 'rule' | 'dashes', header?: string[], columnX?: number[], noText?: boolean }
  * Returns the PDF as a Uint8Array.
  */
 export async function buildCartPdf(spec) {
-  const { title, rows = [], footer = [], layout = 'cells', separator = 'rule', header = HEADER, noText = false } = spec
+  const { title, rows = [], footer = [], layout = 'cells', separator = 'rule', header = HEADER, columnX = COLUMN_X, noText = false } = spec
   const doc = await PDFDocument.create()
   doc.setTitle('Cart')
   doc.setCreator('discount-engine sample generator')
@@ -52,18 +52,18 @@ export async function buildCartPdf(spec) {
   const bold = await doc.embedFont(StandardFonts.CourierBold)
 
   let y = 780
-  page.drawText(title, { x: COLUMN_X[0], y, size: FONT_SIZE, font })
+  page.drawText(title, { x: columnX[0], y, size: FONT_SIZE, font })
   y -= 30
-  drawRow(page, header, y, bold, layout)
+  drawRow(page, header, y, bold, layout, columnX)
   y -= 10
   if (separator === 'dashes') {
-    page.drawText('-'.repeat(70), { x: COLUMN_X[0], y, size: FONT_SIZE, font })
+    page.drawText('-'.repeat(70), { x: columnX[0], y, size: FONT_SIZE, font })
   } else {
-    page.drawLine({ start: { x: COLUMN_X[0], y: y + 4 }, end: { x: 520, y: y + 4 }, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) })
+    page.drawLine({ start: { x: columnX[0], y: y + 4 }, end: { x: 520, y: y + 4 }, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) })
   }
   y -= 16
   for (const row of [...rows, ...footer]) {
-    drawRow(page, row, y, font, layout)
+    drawRow(page, row, y, font, layout, columnX)
     y -= 16
   }
 
