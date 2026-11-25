@@ -12,7 +12,7 @@
  * Validators return { parsed } when the input is valid, or { errors: string[] }.
  */
 
-export const RULE_SCOPES = ['brand', 'platform']
+export const RULE_SCOPES = ['brand', 'platform', 'cart']
 export const RULE_TYPES = ['percentage', 'flat']
 
 const isBlank = (v) => v === undefined || v === null || String(v).trim() === ''
@@ -40,7 +40,12 @@ export function parseBoolean(v) {
 
 /**
  * Validates a candidate discount rule.
- * Input fields: ruleId, scope, appliesTo, type, value, stackable (strings or typed values).
+ * Input fields: ruleId, scope, appliesTo, type, value, stackable, minCartValue
+ * (strings or typed values).
+ *
+ * Cart rules need a minimum cart value and ignore appliesTo. Brand and platform
+ * rules must not carry a minimum cart value: the engine can't attach conditions
+ * to item rules, and silently dropping one would make the offer broader than intended.
  */
 export function validateRule(raw) {
   const errors = []
@@ -50,13 +55,22 @@ export function validateRule(raw) {
   const type = text(raw.type).toLowerCase()
   const value = parseNumber(raw.value)
   const stackable = parseBoolean(raw.stackable)
+  const hasMinCartValue = !isBlank(raw.minCartValue)
+  const minCartValue = parseNumber(raw.minCartValue)
 
   if (!ruleId) errors.push('rule ID is missing')
 
   if (!RULE_SCOPES.includes(scope)) {
     errors.push(`scope must be ${orList(RULE_SCOPES)}, got "${text(raw.scope)}"`)
-  } else if (!appliesTo) {
-    errors.push(`a ${scope} rule must say which ${scope} it applies to`)
+  } else if (scope === 'cart') {
+    if (!hasMinCartValue) {
+      errors.push('a cart rule needs a minimum cart value')
+    } else if (minCartValue === null || minCartValue <= 0) {
+      errors.push(`minimum cart value must be a positive number, got "${text(raw.minCartValue)}"`)
+    }
+  } else {
+    if (!appliesTo) errors.push(`a ${scope} rule must say which ${scope} it applies to`)
+    if (hasMinCartValue) errors.push(`a minimum cart value only applies to cart rules, not ${scope} rules`)
   }
 
   if (!RULE_TYPES.includes(type)) {
@@ -74,7 +88,19 @@ export function validateRule(raw) {
   }
 
   if (errors.length > 0) return { errors }
-  return { parsed: { ruleId, scope, appliesTo, type, value, stackable } }
+
+  const isCart = scope === 'cart'
+  return {
+    parsed: {
+      ruleId,
+      scope,
+      appliesTo: isCart ? null : appliesTo,
+      type,
+      value,
+      stackable,
+      minCartValue: isCart ? minCartValue : null,
+    },
+  }
 }
 
 /**

@@ -9,22 +9,23 @@ import { useState } from 'react'
 import CsvUploader from './components/CsvUploader.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
+import CartSummary from './components/CartSummary.jsx'
 import { parseRulesCSV, parseCartCSV } from './inputs/csvInput.js'
-import { processCart, cartTotal } from './engine/discountEngine.js'
+import { priceCart } from './engine/discountEngine.js'
+import { formatRupees as rs, formatRuleValue } from './engine/format.js'
 
 // ── Column definitions ───────────────────────────────────────────
 
+const capitalise = (v) => v.charAt(0).toUpperCase() + v.slice(1)
+
 const RULES_COLUMNS = [
-  { key: 'ruleId',    label: 'Rule ID' },
-  { key: 'scope',     label: 'Scope',      render: (v) => v.charAt(0).toUpperCase() + v.slice(1) },
-  { key: 'appliesTo', label: 'Applies To' },
-  { key: 'type',      label: 'Type',       render: (v) => v.charAt(0).toUpperCase() + v.slice(1) },
-  {
-    key: 'value',
-    label: 'Value',
-    render: (v, row) => row.type === 'percentage' ? `${v}% off` : `Rs.${v} off`,
-  },
-  { key: 'stackable', label: 'Stackable',  render: (v) => (v ? 'Yes' : 'No') },
+  { key: 'ruleId',       label: 'Rule ID' },
+  { key: 'scope',        label: 'Scope',      render: capitalise },
+  { key: 'appliesTo',    label: 'Applies To', render: (v, row) => (row.scope === 'cart' ? 'Entire cart' : v) },
+  { key: 'type',         label: 'Type',       render: capitalise },
+  { key: 'value',        label: 'Value',      render: (v, row) => formatRuleValue(row) },
+  { key: 'minCartValue', label: 'Condition',  render: (v) => (v ? `Cart total ≥ ${rs(v)}` : '—') },
+  { key: 'stackable',    label: 'Stackable',  render: (v) => (v ? 'Yes' : 'No') },
 ]
 
 const CART_COLUMNS = [
@@ -32,17 +33,17 @@ const CART_COLUMNS = [
   { key: 'product',   label: 'Product' },
   { key: 'brand',     label: 'Brand' },
   { key: 'platform',  label: 'Platform' },
-  { key: 'basePrice', label: 'Base Price', render: (v) => `Rs.${v.toLocaleString('en-IN')}` },
+  { key: 'basePrice', label: 'Base Price', render: (v) => rs(v) },
 ]
 
 const RESULTS_COLUMNS = [
   { key: 'itemId',    label: 'Item' },
   { key: 'product',   label: 'Product' },
-  { key: 'basePrice', label: 'Base Price',  render: (v) => `Rs.${v.toLocaleString('en-IN')}` },
+  { key: 'basePrice', label: 'Base Price',  render: (v) => rs(v) },
   { key: 'finalPrice',label: 'Final Price',
     render: (v, row) => (
       <span style={{ fontWeight: 700, color: row.totalDiscount > 0 ? '#1e5c2c' : '#131A48' }}>
-        Rs.{v.toLocaleString('en-IN')}
+        {rs(v)}
       </span>
     ),
   },
@@ -51,7 +52,7 @@ const RESULTS_COLUMNS = [
     label: 'You Save',
     render: (v) =>
       v > 0 ? (
-        <span style={{ color: '#1e5c2c', fontWeight: 600 }}>Rs.{v.toLocaleString('en-IN')}</span>
+        <span style={{ color: '#1e5c2c', fontWeight: 600 }}>{rs(v)}</span>
       ) : (
         <span style={{ color: '#888' }}>—</span>
       ),
@@ -89,13 +90,6 @@ const S = {
     padding: '0.65rem 2rem', fontSize: 13, fontWeight: 700, cursor: 'not-allowed',
     letterSpacing: '0.04em', textTransform: 'uppercase',
   },
-  totalRow: {
-    display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-    gap: '1rem', marginTop: '0.75rem', paddingTop: '0.75rem',
-    borderTop: '2px solid #131A48',
-  },
-  totalLabel: { fontWeight: 700, fontSize: 14, color: '#131A48' },
-  totalValue: { fontWeight: 700, fontSize: 16, color: '#131A48' },
   tag: (color, bg) => ({
     display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
     borderRadius: 20, background: bg, color, textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -134,8 +128,7 @@ export default function App() {
   }
 
   function handleCalculate() {
-    const res = processCart(cartItems, rules)
-    setResults(res)
+    setResults(priceCart(cartItems, rules))
   }
 
   const canCalculate = rules.length > 0 && cartItems.length > 0
@@ -217,11 +210,8 @@ export default function App() {
         {results && (
           <div style={S.section}>
             <div style={S.sectionTitle}>Cart Summary</div>
-            <DataTable columns={RESULTS_COLUMNS} rows={results} />
-            <div style={S.totalRow}>
-              <span style={S.totalLabel}>Cart Total</span>
-              <span style={S.totalValue}>Rs.{cartTotal(results).toLocaleString('en-IN')}</span>
-            </div>
+            <DataTable columns={RESULTS_COLUMNS} rows={results.items} />
+            <CartSummary pricing={results} />
           </div>
         )}
 

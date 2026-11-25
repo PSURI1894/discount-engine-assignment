@@ -3,11 +3,15 @@
  * expressed as engine objects (no CSV parsing involved).
  */
 
-export const RULE_01 = { ruleId: 'RULE-01', scope: 'platform', appliesTo: 'Amazon India', type: 'percentage', value: 15, stackable: false }
-export const RULE_02 = { ruleId: 'RULE-02', scope: 'brand', appliesTo: 'Natura Casa', type: 'flat', value: 150, stackable: false }
-export const RULE_03 = { ruleId: 'RULE-03', scope: 'platform', appliesTo: 'Flipkart', type: 'percentage', value: 10, stackable: true }
+const rule = (fields) => ({ appliesTo: null, minCartValue: null, ...fields })
+
+export const RULE_01 = rule({ ruleId: 'RULE-01', scope: 'platform', appliesTo: 'Amazon India', type: 'percentage', value: 15, stackable: false })
+export const RULE_02 = rule({ ruleId: 'RULE-02', scope: 'brand', appliesTo: 'Natura Casa', type: 'flat', value: 150, stackable: false })
+export const RULE_03 = rule({ ruleId: 'RULE-03', scope: 'platform', appliesTo: 'Flipkart', type: 'percentage', value: 10, stackable: true })
+export const RULE_04 = rule({ ruleId: 'RULE-04', scope: 'cart', type: 'percentage', value: 10, stackable: false, minCartValue: 4000 })
 
 export const SAMPLE_ITEM_RULES = [RULE_01, RULE_02, RULE_03]
+export const SAMPLE_RULES = [...SAMPLE_ITEM_RULES, RULE_04]
 
 export const SAMPLE_CART = [
   { itemId: 'ITEM-01', product: 'Cushion Cover', brand: 'Natura Casa', platform: 'Amazon India', basePrice: 1299 },
@@ -17,6 +21,8 @@ export const SAMPLE_CART = [
   { itemId: 'ITEM-05', product: 'Cutting Board', brand: 'Nordic Basics', platform: 'Amazon India', basePrice: 449 },
   { itemId: 'ITEM-06', product: 'Desk Organiser', brand: 'Nordic Basics', platform: 'Flipkart', basePrice: 899 },
 ]
+
+export const makeRule = rule
 
 export const item = (overrides) => ({
   itemId: 'ITEM-X', product: 'Test Product', brand: 'Test Brand', platform: 'Test Platform', basePrice: 1000,

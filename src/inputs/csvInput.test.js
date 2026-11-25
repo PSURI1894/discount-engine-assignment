@@ -6,10 +6,19 @@ const sample = (name) => readFileSync(new URL(`../../sample-data/${name}`, impor
 const RULES_HEADER = 'rule_id,scope,applies_to,type,value,stackable'
 
 describe('parseRulesCSV', () => {
-  it('parses the sample rules file', () => {
+  it('parses the sample rules file, including the RULE-04 cart offer', () => {
     const { data, errors } = parseRulesCSV(sample('rules.csv'))
     expect(errors).toEqual([])
-    expect(data.map((r) => r.ruleId)).toEqual(['RULE-01', 'RULE-02', 'RULE-03'])
+    expect(data.map((r) => r.ruleId)).toEqual(['RULE-01', 'RULE-02', 'RULE-03', 'RULE-04'])
+    expect(data[3]).toEqual({
+      ruleId: 'RULE-04', scope: 'cart', appliesTo: null, type: 'percentage', value: 10, stackable: false, minCartValue: 4000,
+    })
+  })
+
+  it('still loads an older rules file without the min_cart_value column', () => {
+    const { data, errors } = parseRulesCSV(`${RULES_HEADER}\nRULE-01,platform,Amazon India,percentage,15,false`)
+    expect(errors).toEqual([])
+    expect(data[0].minCartValue).toBeNull()
   })
 
   it('rejects a percentage above 100', () => {

@@ -35,8 +35,24 @@ describe('validateRule', () => {
 
   it('normalises a valid rule', () => {
     expect(validateRule(good)).toEqual({
-      parsed: { ruleId: 'RULE-01', scope: 'platform', appliesTo: 'Amazon India', type: 'percentage', value: 15, stackable: false },
+      parsed: { ruleId: 'RULE-01', scope: 'platform', appliesTo: 'Amazon India', type: 'percentage', value: 15, stackable: false, minCartValue: null },
     })
+  })
+
+  it('accepts a cart rule without "applies to" and keeps its minimum', () => {
+    const { parsed } = validateRule({ ruleId: 'RULE-04', scope: 'cart', appliesTo: 'Entire cart', type: 'percentage', value: 10, stackable: false, minCartValue: 'Rs.4,000' })
+    expect(parsed.appliesTo).toBeNull()
+    expect(parsed.minCartValue).toBe(4000)
+  })
+
+  it('requires a minimum cart value on cart rules', () => {
+    const { errors } = validateRule({ ruleId: 'RULE-04', scope: 'cart', type: 'percentage', value: 10, stackable: false })
+    expect(errors).toEqual(['a cart rule needs a minimum cart value'])
+  })
+
+  it('refuses a minimum cart value on an item rule rather than silently dropping the condition', () => {
+    const { errors } = validateRule({ ...good, minCartValue: '2000' })
+    expect(errors).toEqual(['a minimum cart value only applies to cart rules, not platform rules'])
   })
 
   it('lists every problem at once', () => {
@@ -51,7 +67,7 @@ describe('validateRule', () => {
   })
 
   it('rejects an unknown scope', () => {
-    expect(validateRule({ ...good, scope: 'category' }).errors).toEqual(['scope must be "brand" or "platform", got "category"'])
+    expect(validateRule({ ...good, scope: 'category' }).errors).toEqual(['scope must be "brand" or "platform" or "cart", got "category"'])
   })
 })
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { processCart, cartTotal, applyDiscounts } from './discountEngine.js'
-import { SAMPLE_CART, SAMPLE_ITEM_RULES, RULE_01, item } from '../test/fixtures.js'
+import { processCart, cartTotal, applyDiscounts, priceCart } from './discountEngine.js'
+import { SAMPLE_CART, SAMPLE_ITEM_RULES, SAMPLE_RULES, RULE_01, RULE_04, item, makeRule } from '../test/fixtures.js'
 
 const byId = (results) => Object.fromEntries(results.map((r) => [r.itemId, r]))
 
@@ -36,6 +36,68 @@ describe('item-level discounts — expected results from the brief', () => {
 
   it('cart total before any cart offer is Rs.5,932', () => {
     expect(cartTotal(Object.values(results))).toBe(5932)
+  })
+})
+
+describe('cart-level offers', () => {
+  it('matches the brief: Rs.5,932 ≥ Rs.4,000 → RULE-04 takes Rs.593 off → Rs.5,339', () => {
+    const pricing = priceCart(SAMPLE_CART, SAMPLE_RULES)
+    expect(pricing.subtotal).toBe(5932)
+    expect(pricing.cartOffer.appliedRules).toEqual(['RULE-04'])
+    expect(pricing.cartOffer.totalDiscount).toBe(593)
+    expect(pricing.cartOffer.lines).toEqual([{ ruleId: 'RULE-04', label: 'Cart offer: 10% off', amount: 593, minCartValue: 4000 }])
+    expect(pricing.total).toBe(5339)
+    expect(pricing.baseTotal).toBe(6594)
+    expect(pricing.totalSavings).toBe(6594 - 5339)
+  })
+
+  it('never applies a cart rule to individual items', () => {
+    const withCartRule = processCart(SAMPLE_CART, SAMPLE_RULES).map((r) => r.finalPrice)
+    const withoutCartRule = processCart(SAMPLE_CART, SAMPLE_ITEM_RULES).map((r) => r.finalPrice)
+    expect(withCartRule).toEqual(withoutCartRule)
+  })
+
+  it('applies at exactly the minimum (inclusive)', () => {
+    const pricing = priceCart([item({ basePrice: 4000 })], [RULE_04])
+    expect(pricing.cartOffer.totalDiscount).toBe(400)
+    expect(pricing.total).toBe(3600)
+  })
+
+  it('does not apply Rs.1 below the minimum, and reports no cart offer', () => {
+    const pricing = priceCart([item({ basePrice: 3999 })], [RULE_04])
+    expect(pricing.cartOffer).toBeNull()
+    expect(pricing.total).toBe(3999)
+  })
+
+  it('checks the minimum against discounted item prices, not base prices', () => {
+    // Base Rs.4,100, but 15% off on Amazon India brings it to Rs.3,485 — below Rs.4,000.
+    const pricing = priceCart([item({ platform: 'Amazon India', basePrice: 4100 })], [RULE_01, RULE_04])
+    expect(pricing.subtotal).toBe(3485)
+    expect(pricing.cartOffer).toBeNull()
+  })
+
+  it('picks the biggest qualifying cart saving, ignoring rules whose minimum is not met', () => {
+    const flat700Above5000 = makeRule({ ruleId: 'RULE-05', scope: 'cart', type: 'flat', value: 700, stackable: false, minCartValue: 5000 })
+    const pct20Above9000 = makeRule({ ruleId: 'RULE-06', scope: 'cart', type: 'percentage', value: 20, stackable: false, minCartValue: 9000 })
+    const pricing = priceCart(SAMPLE_CART, [...SAMPLE_RULES, flat700Above5000, pct20Above9000])
+    expect(pricing.cartOffer.appliedRules).toEqual(['RULE-05'])
+    expect(pricing.cartOffer.skippedRules).toEqual(['RULE-04'])
+    expect(pricing.total).toBe(5932 - 700)
+  })
+
+  it('breaks a tie between cart rules in favour of the rule listed first', () => {
+    const pct10Above5000 = makeRule({ ruleId: 'RULE-05', scope: 'cart', type: 'percentage', value: 10, stackable: false, minCartValue: 5000 })
+    const pricing = priceCart(SAMPLE_CART, [...SAMPLE_RULES, pct10Above5000])
+    expect(pricing.cartOffer.appliedRules).toEqual(['RULE-04'])
+    expect(pricing.total).toBe(5339)
+  })
+
+  it('stacks a stackable cart rule on top of the winning one', () => {
+    const extra5 = makeRule({ ruleId: 'RULE-05', scope: 'cart', type: 'percentage', value: 5, stackable: true, minCartValue: 1000 })
+    const pricing = priceCart(SAMPLE_CART, [...SAMPLE_RULES, extra5])
+    // 5932 − 593 = 5339; 5% of 5339 = 266.95 → 267; 5339 − 267 = 5072
+    expect(pricing.cartOffer.appliedRules).toEqual(['RULE-04', 'RULE-05'])
+    expect(pricing.total).toBe(5072)
   })
 })
 

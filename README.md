@@ -50,14 +50,17 @@ sample-data/
 
 **rules.csv**
 
-| Column     | Type              | Example          |
-|------------|-------------------|------------------|
-| rule_id    | string            | RULE-01          |
-| scope      | brand \| platform | platform         |
-| applies_to | string            | Amazon India     |
-| type       | percentage \| flat| percentage       |
-| value      | number            | 15               |
-| stackable  | true \| false     | false            |
+| Column         | Type                      | Example          |
+|----------------|---------------------------|------------------|
+| rule_id        | string                    | RULE-01          |
+| scope          | brand \| platform \| cart | platform         |
+| applies_to     | string (empty for cart)   | Amazon India     |
+| type           | percentage \| flat        | percentage       |
+| value          | number                    | 15               |
+| stackable      | true \| false             | false            |
+| min_cart_value | number (cart rules only)  | 4000             |
+
+`min_cart_value` is optional, so rule files without that column still load.
 
 **cart.csv**
 
@@ -74,6 +77,10 @@ sample-data/
 - When multiple non-stackable rules match an item, the one giving the **largest saving in rupees** is applied.
 - Rules marked `stackable: true` apply **on top of** the winning non-stackable rule.
 - If no rules match, the base price is returned with a "No offers available" note.
+- **Cart rules** are checked after all item discounts: if the sum of final item prices is at least
+  `min_cart_value`, the discount comes off the cart total and is shown as its own line.
+  Qualifying cart rules use the same best-saving / stacking logic as item rules.
+- No discount can take a price below zero.
 
 ## Expected results for the sample data
 
@@ -85,3 +92,9 @@ sample-data/
 | ITEM-04 | Rs.2,499  | Rs.2,499    | No offers available                    |
 | ITEM-05 | Rs.449    | Rs.382      | Platform offer: 15% off                |
 | ITEM-06 | Rs.899    | Rs.809      | Platform offer: 10% off                |
+
+| Cart                    | Amount    |
+|-------------------------|-----------|
+| Cart total before offer | Rs.5,932  |
+| Cart offer: 10% off (RULE-04, cart total ≥ Rs.4,000) | −Rs.593 |
+| **Final cart total**    | **Rs.5,339** |

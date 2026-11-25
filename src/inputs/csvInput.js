@@ -7,7 +7,8 @@
  * or item. A bad row is skipped and reported with its row number, so one typo
  * doesn't throw away the rest of the file.
  *
- * rules.csv columns: rule_id, scope, applies_to, type, value, stackable
+ * rules.csv columns: rule_id, scope, applies_to, type, value, stackable, min_cart_value
+ *                    (min_cart_value is optional so older rule files still load)
  * cart.csv columns:  item_id, product, brand, platform, base_price
  */
 
@@ -89,6 +90,7 @@ export function parseRulesCSV(csvText) {
       type: r.type,
       value: r.value,
       stackable: r.stackable,
+      minCartValue: r.min_cart_value,
     }),
     validateRule,
     'ruleId',
