@@ -175,7 +175,7 @@ approve it. Every finding was reproduced, fixed and turned into a test:
   a message.
 - A slow PDF could overwrite a newer cart. Fixed.
 
-**Measuring the parser.** `server/ruleParser/evalCases.js` holds 47 descriptions: the brief's
+**Measuring the parser.** `server/ruleParser/evalCases.js` holds 49 descriptions: the brief's
 examples, other phrasings, inputs that must be refused (vague, unsupported, 150%, a prompt-injection
 attempt) and the review's adversarial cases. Each is scored on what the user would be shown after
 validation. A *wrong rule* (shown, but not matching) is counted separately from a refusal, because
@@ -183,7 +183,7 @@ it's the worse failure.
 
 | Parser | Score | Wrong rules |
 |---|---|---|
-| Rule-based | 46/47 | 0 (it asks instead of guessing at number words like "a hundred rupees") |
+| Rule-based | 48/49 | 0 (it asks instead of guessing at number words like "a hundred rupees") |
 
 **Known limitation:** `/api/parse-rule` is unauthenticated, so anyone can spend the LLM quota. When it
 runs out, the app falls back to the rule-based parser rather than failing. A real deployment would add
@@ -230,7 +230,7 @@ Environment Variables:
 
 ### Testing
 
-`npm test` runs 281 tests:
+`npm test` runs 284 tests:
 - **Engine:** the brief's expected results, cart-offer boundaries, ties, stacking order, the
   never-below-zero cap, explanations after rules change, and the "add Rs.X more" hint.
 - **Inputs:** CSV edge cases; the plain-English adapter against valid, invalid, vague, unsupported and

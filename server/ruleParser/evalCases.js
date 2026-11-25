@@ -64,6 +64,8 @@ export const EVAL_CASES = [
   { text: 'Rs.2 thousand off orders over Rs.20,000', want: { scope: 'cart', type: 'flat', value: 2000, minCartValue: 20000 } },
   { text: '10% off when you spend Rs.5,000', want: { scope: 'cart', type: 'percentage', value: 10, minCartValue: 5000 } },
   { text: 'Rs.500 off on a minimum purchase of Rs.3,000', want: { scope: 'cart', type: 'flat', value: 500, minCartValue: 3000 } },
+  { text: '10% off Nordic Basics only', want: { scope: 'brand', appliesTo: 'Nordic Basics', type: 'percentage', value: 10 } },
+  { text: 'Rs.500 off when cart crosses Rs.10k', want: { scope: 'cart', type: 'flat', value: 500, minCartValue: 10000 } },
 
   // Adversarial cases from a review: conditions that used to be dropped silently
   { text: 'Exclusive deal: 10% off Natura Casa, stackable with other offers', want: 'refuse', why: 'contradictory stackability' },

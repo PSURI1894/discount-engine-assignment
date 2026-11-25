@@ -134,6 +134,14 @@ describe('offlineParse — refuses rather than guessing', () => {
     expect(out.message).toMatch(/couldn't account for/)
   })
 
+  it('accepts a harmless trailing "only" — but not when it comes with an unknown name', () => {
+    const out = parse('10% off Nordic Basics only')
+    expect(out.status).toBe('ok')
+    expect(out.rule).toMatchObject({ scope: 'brand', appliesTo: 'Nordic Basics', value: 10 })
+    expect(out.assumptions).toContain('"only" read as restating the rule, not adding a condition')
+    expect(parse('15% off Natura Casa on Myntra only').status).toBe('unresolvable')
+  })
+
   it('asks when a description says both "stackable" and "exclusive"', () => {
     const out = parse('Exclusive deal: 10% off Natura Casa, stackable with other offers')
     expect(out.status).toBe('unresolvable')

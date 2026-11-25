@@ -193,9 +193,13 @@ export function offlineParse(input, { knownBrands = [], knownPlatforms = [] } = 
 
   // Anything left unexplained?
   const firstWord = text.match(/[A-Za-z]+/)?.[0]
-  const unaccounted = (tracker.text.match(/[A-Za-z0-9]+(?:'[A-Za-z]+)?/g) ?? [])
+  const leftover = (tracker.text.match(/[A-Za-z0-9]+(?:'[A-Za-z]+)?/g) ?? [])
     .map((w) => w.replace(/'s$/i, ''))
     .filter((w) => !FILLER.has(w.toLowerCase()))
+  // "10% off Nordic Basics only" says nothing the rule doesn't. "only" is harmless when it is the
+  // sole leftover; next to anything else ("on Myntra only") the other words still cause a refusal.
+  const onlyRestates = leftover.length > 0 && leftover.every((w) => w.toLowerCase() === 'only')
+  const unaccounted = onlyRestates ? [] : leftover
   const suspicious = unaccounted.filter((w) => RISKY.has(w.toLowerCase()) || (/^[A-Z]/.test(w) && w !== firstWord) || /\d/.test(w))
   const extra = { unaccounted, suspicious }
 
@@ -230,6 +234,7 @@ export function offlineParse(input, { knownBrands = [], knownPlatforms = [] } = 
 
   const assumptions = []
   if (itemTarget?.assumed) assumptions.push(itemTarget.assumed)
+  if (onlyRestates) assumptions.push('"only" read as restating the rule, not adding a condition')
 
   const stackable = positive > 0
   if (positive === 0 && negative === 0) assumptions.push('Stackability not mentioned, so the rule does not stack with other offers')
