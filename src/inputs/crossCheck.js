@@ -9,6 +9,7 @@
  *   both read a rule, same fields   → a reassuring note
  *   both read a rule, fields differ  → a warning naming the fields
  *   rule-based flags "unsupported"   → a warning: the LLM may have dropped a condition
+ *   rule-based finds it contradictory about stacking → a warning to check that field
  *   rule-based can't account for words that look like a condition or a name
  *     ("only", "and", "Myntra")      → a warning naming them
  *   rule-based can't read it otherwise → nothing (expected for free-form phrasing)
@@ -39,6 +40,15 @@ export function crossCheck(rule, offlineOutput) {
   if (offlineOutput.status === 'unsupported') {
     return {
       warnings: [`A rule-based check flagged this description: "${offlineOutput.message}" Make sure the rule above doesn't leave out a condition.`],
+      note: null,
+    }
+  }
+
+  // The rule-based parser found the description contradictory about stacking
+  // (e.g. "exclusive" and "stackable"): an LLM may have silently picked one side.
+  if (offlineOutput.status === 'unresolvable' && strings(offlineOutput.missing).includes('stackable')) {
+    return {
+      warnings: [`A rule-based check found this description contradictory: "${offlineOutput.message}" Check the Stackable field before adding.`],
       note: null,
     }
   }

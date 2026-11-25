@@ -128,6 +128,15 @@ describe('crossCheck — the LLM\'s reading against the rule-based parser', () =
     expect(res.note).toBeNull()
   })
 
+  it('flags a contradiction about stacking that an LLM resolved silently (seen with a real model)', () => {
+    // openai/gpt-oss-20b read this as stackable=true; "exclusive" says otherwise.
+    const natura10 = { ruleId: 'RULE-05', scope: 'brand', appliesTo: 'Natura Casa', type: 'percentage', value: 10, stackable: true, minCartValue: null }
+    const res = crossCheck(natura10, offlineParse('Exclusive deal: 10% off Natura Casa, stackable with other offers', known))
+    expect(res.warnings).toEqual([
+      'A rule-based check found this description contradictory: "The description says both that this offer stacks and that it doesn\'t. Which is it?" Check the Stackable field before adding.',
+    ])
+  })
+
   it('stays quiet when the rule-based parser cannot read the phrasing', () => {
     expect(crossCheck(rule, offlineParse('please knock a hundred rupees off anything sold through flipkart', known)))
       .toEqual({ warnings: [], note: null })
