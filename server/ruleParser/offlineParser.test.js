@@ -64,6 +64,39 @@ describe('offlineParse — other phrasings', () => {
   it('passes a percentage over 100 through unchanged, for validation to reject', () => {
     expect(parse('150% off Flipkart items').rule.value).toBe(150)
   })
+
+  it.each([
+    'Rs.100 off Natura Casa items, can’t be combined with other offers',
+    '10% off Nordic Basics, not combinable with other offers',
+    'Rs.50 off Flipkart items, cannot be clubbed with other offers',
+    "10% off Noon items, isn't stackable",
+    '10% off Noon items, should not stack',
+    '10% off Noon items, no stacking',
+    '10% off Noon items, not valid with other offers',
+    '10% off Noon items, can not be combined with other offers',
+    '10% off Noon items, doesn’t stack with other offers',
+    '10% off Noon items, non-stackable',
+  ])('reads a negated stackability as not stackable: "%s"', (text) => {
+    const out = parse(text)
+    expect(out.status).toBe('ok')
+    expect(out.rule.stackable).toBe(false)
+    expect(out.assumptions.some((a) => a.startsWith('Stackability not mentioned'))).toBe(false)
+  })
+
+  it.each([
+    ['10% off orders above 1 lakh', { type: 'percentage', value: 10, minCartValue: 100000 }],
+    ['10% off orders above Rs.1.5 lakh', { value: 10, minCartValue: 150000 }],
+    ['10% off orders above 5 thousand', { value: 10, minCartValue: 5000 }],
+    ['Rs.2 thousand off orders over Rs.20,000', { type: 'flat', value: 2000, minCartValue: 20000 }],
+    ['5% off orders over Rs.1 crore', { value: 5, minCartValue: 10000000 }],
+    ['10% off when you spend Rs.5,000', { value: 10, minCartValue: 5000 }],
+    ['Rs.500 off on a minimum purchase of Rs.3,000', { type: 'flat', value: 500, minCartValue: 3000 }],
+    ['Rs.100 off on orders of Rs.999 and more', { type: 'flat', value: 100, minCartValue: 999 }],
+  ])('reads Indian amounts and threshold wording: "%s"', (text, fields) => {
+    const out = parse(text)
+    expect(out.status).toBe('ok')
+    expect(out.rule).toMatchObject({ scope: 'cart', ...fields })
+  })
 })
 
 describe('offlineParse — refuses rather than guessing', () => {
@@ -74,11 +107,36 @@ describe('offlineParse — refuses rather than guessing', () => {
     ['Rs.100 off for first-time buyers on Noon', /type of customer/],
     ['Buy 2 get 1 free on Natura Casa', /quantities/],
     ['Up to 30% off Amazon India', /up to/],
-    ['15% off Flipkart and 10% off Noon', /more than one rule/],
+    ['15% off Flipkart and 10% off Noon', /more than one amount/],
+    ['15% off Flipkart and Noon', /only apply to one platform/],
+    ['15% off everything except Flipkart', /excludes something/],
+    ['10% off orders with at least 3 products', /quantities/],
+    ['10% off on 3+ items', /quantities/],
+    ['10% off orders under Rs.5000', /sets a maximum/],
+    ['Rs.100 off all orders before noon', /time limit/],
+    ['10% off Flipkart items for the next 2 weeks', /time limit/],
+    ['10% off Noon items with HDFC credit cards', /how the customer pays/],
   ])('"%s" → unsupported', (text, reason) => {
     const out = parse(text)
     expect(out.status).toBe('unsupported')
     expect(out.message).toMatch(reason)
+  })
+
+  it.each([
+    ['15% off Natura Casa on Myntra only', ['Myntra', 'only']],
+    ['10% off IKEA products on Flipkart', ['IKEA']],
+    ['Rs.100 off Myntra orders above Rs.2,000', ['Myntra']],
+    ['25% off cushion covers on Flipkart', ['cushion', 'covers']],
+  ])('refuses "%s" because it cannot account for every word', (text, words) => {
+    const out = parse(text)
+    expect(out.status).toBe('unresolvable')
+    expect(out.unaccounted).toEqual(words)
+    expect(out.message).toMatch(/couldn't account for/)
+  })
+
+  it('asks when a description says both "stackable" and "exclusive"', () => {
+    const out = parse('Exclusive deal: 10% off Natura Casa, stackable with other offers')
+    expect(out.status).toBe('unresolvable')
   })
 
   it('asks which brand or platform when none is given', () => {

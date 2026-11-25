@@ -114,6 +114,13 @@ describe('crossCheck — the LLM\'s reading against the rule-based parser', () =
     expect(res.warnings[0]).toMatch(/^A rule-based check flagged this description: "An offer can apply to a brand or to a platform, not to both together/)
   })
 
+  it('names condition words and unknown names the LLM\'s rule may have dropped', () => {
+    const natura15 = { ruleId: 'RULE-05', scope: 'brand', appliesTo: 'Natura Casa', type: 'percentage', value: 15, stackable: false, minCartValue: null }
+    const res = crossCheck(natura15, offlineParse('15% off Natura Casa on Myntra only', known))
+    expect(res.warnings).toEqual(['The description mentions "Myntra", "only", which the rule above may not reflect. Make sure it doesn\'t leave out a condition or a name.'])
+    expect(res.note).toBeNull()
+  })
+
   it('stays quiet when the rule-based parser cannot read the phrasing', () => {
     expect(crossCheck(rule, offlineParse('please knock a hundred rupees off anything sold through flipkart', known)))
       .toEqual({ warnings: [], note: null })

@@ -9,6 +9,19 @@ most, stacks stackable offers on top, applies cart-level offers to the total, an
 result in plain language. Rules can come from a CSV or be typed in plain English; carts can come
 from a CSV or a PDF.
 
+**In 30 seconds**
+- The brief's expected results reproduce exactly (Rs.5,339). They were pinned in tests before any change.
+- **Task 1:** the cart offer is its own line. The minimum is inclusive and checked on the discounted
+  subtotal. Just below it, the shopper sees "Add Rs.563 more to get 10% off your cart".
+- **Task 2:** plain English → LLM (or a free offline parser) → the same validator as CSV rows → a
+  confirmation card with a price preview. Vague or unsupported rules are refused, never guessed, and
+  LLM readings are cross-checked.
+- **Task 3:** PDF carts are read in the browser. If some rows can't be read, the user reviews them
+  before the cart is replaced.
+- One validator and a pure engine: Tasks 2 and 3 didn't touch the calculator, and a new input mode
+  wouldn't either.
+- The full test suite runs in CI on every push, and the app was checked end to end in a real browser.
+
 ## Run locally
 
 ```bash

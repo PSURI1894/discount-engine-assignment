@@ -149,7 +149,9 @@ function show(field, value, type) {
  *   both read a rule, same fields  → a reassuring note
  *   both read a rule, fields differ → a warning naming the fields
  *   offline flags "unsupported"     → a warning: the LLM may have dropped a condition
- *   offline can't read it           → nothing (expected for free-form phrasing)
+ *   offline can't account for words that look like a condition or a name
+ *     ("only", "and", "Myntra")     → a warning naming them
+ *   offline can't read it otherwise → nothing (expected for free-form phrasing)
  * Returns { warnings, note }.
  */
 export function crossCheck(rule, offlineOutput) {
@@ -158,6 +160,15 @@ export function crossCheck(rule, offlineOutput) {
   if (offlineOutput.status === 'unsupported') {
     return {
       warnings: [`A rule-based check flagged this description: "${offlineOutput.message}" Make sure the rule above doesn't leave out a condition.`],
+      note: null,
+    }
+  }
+
+  const suspicious = strings(offlineOutput.suspicious)
+  if (offlineOutput.status !== 'ok' && suspicious.length > 0) {
+    const words = suspicious.map((w) => `"${w}"`).join(', ')
+    return {
+      warnings: [`The description mentions ${words}, which the rule above may not reflect. Make sure it doesn't leave out a condition or a name.`],
       note: null,
     }
   }
