@@ -251,8 +251,11 @@ src/engine/                discountEngine.js (pure pricing), preview.js (what-if
                            next cart offer), format.js
 src/inputs/                validate.js (the single gate), csvInput.js, nlRuleInput.js,
                            pdfCartInput.js + pdfText.js, ruleIds.js
-src/components/            FileUploader, DataTable, CartSummary, CheckoutView, RuleInput,
-                           RuleConfirmation, PdfImportReview, ErrorBanner, ErrorBoundary
+src/state/                 useRules.js (file + plain-English rules), useCart.js (CSV/PDF cart loading)
+src/App.jsx                wires state → priceCart() → panels
+src/components/            RulesPanel, CartPanel, ResultsPanel (+ CartSummary, CheckoutView),
+                           RuleInput + RuleConfirmation, PdfImportReview, FileUploader, SampleBar,
+                           DataTable, ErrorBanner, ErrorBoundary, ui.jsx (shared styles)
 src/sampleData.js          bundles sample-data/ for "Load sample data" and the download links
 sample-data/               rules.csv, cart.csv, cart.pdf, cart-small-order.pdf, cart-with-errors.pdf
 scripts/                   make-sample-pdfs, eval-parser, browser-check
