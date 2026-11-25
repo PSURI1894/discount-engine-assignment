@@ -36,7 +36,10 @@ describe('handleParseRule — with an LLM key', () => {
     const fetchImpl = vi.fn(async () => llmReply('{"status":"ok"}'))
     const res = await handleParseRule(body, env, { fetchImpl })
 
-    expect(res.json).toEqual({ parser: 'test-model', output: '{"status":"ok"}' })
+    expect(res.json.parser).toBe('test-model')
+    expect(res.json.output).toBe('{"status":"ok"}')
+    // the offline parser's reading travels alongside, for the client to compare
+    expect(res.json.crossCheck.rule).toMatchObject({ scope: 'platform', appliesTo: 'Flipkart', type: 'flat', value: 100 })
     const [url, init] = fetchImpl.mock.calls[0]
     expect(url).toBe(`${DEFAULT_BASE_URL}/chat/completions`)
     expect(init.headers.Authorization).toBe('Bearer test-key')

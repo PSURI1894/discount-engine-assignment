@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { interpretParserOutput, parseRuleFromText, knownNames } from './nlRuleInput.js'
+import { interpretParserOutput, parseRuleFromText, knownNames, crossCheck } from './nlRuleInput.js'
 import { handleParseRule } from '../../server/ruleParser/handler.js'
+import { offlineParse } from '../../server/ruleParser/offlineParser.js'
 import { priceCart } from '../engine/discountEngine.js'
 import { SAMPLE_CART, SAMPLE_RULES } from '../test/fixtures.js'
 
@@ -91,6 +92,56 @@ describe('interpretParserOutput — problems are surfaced, never thrown', () => 
     ['"ok" without a rule', { status: 'ok' }],
   ])('reports an error for %s', (_, output) => {
     expect(interpretParserOutput(output, ctx).status).toBe('error')
+  })
+})
+
+describe('crossCheck — the LLM\'s reading against the rule-based parser', () => {
+  const known = { knownBrands: ['Natura Casa'], knownPlatforms: ['Flipkart', 'Amazon India'] }
+  const rule = { ruleId: 'RULE-05', ...flipkartFlat100 }
+
+  it('notes agreement', () => {
+    const res = crossCheck(rule, offlineParse('Rs.100 flat discount on all Flipkart items', known))
+    expect(res).toEqual({ warnings: [], note: 'A separate rule-based check read this description the same way.' })
+  })
+
+  it('names the fields that differ', () => {
+    const res = crossCheck({ ...rule, stackable: true }, offlineParse('Rs.100 flat discount on all Flipkart items', known))
+    expect(res.warnings).toEqual(['A separate rule-based reading disagrees on stackable (LLM: Yes, rule-based: No). Check this before adding.'])
+  })
+
+  it('warns when the rule-based parser sees a condition the engine cannot apply', () => {
+    const res = crossCheck(rule, offlineParse('15% off Natura Casa on Flipkart only', known))
+    expect(res.warnings[0]).toMatch(/^A rule-based check flagged this description: "An offer can apply to a brand or to a platform, not to both together/)
+  })
+
+  it('stays quiet when the rule-based parser cannot read the phrasing', () => {
+    expect(crossCheck(rule, offlineParse('please knock a hundred rupees off anything sold through flipkart', known)))
+      .toEqual({ warnings: [], note: null })
+  })
+})
+
+describe('parseRuleFromText — catching an LLM that drops a condition', () => {
+  it('flags the rule on the confirmation card', async () => {
+    const text = '15% off Natura Casa on Flipkart only'
+    // An LLM that ignores "on Flipkart only" and returns a brand-wide rule:
+    const llmOutput = JSON.stringify(okReply({ scope: 'brand', appliesTo: 'Natura Casa', type: 'percentage', value: 15, stackable: false, minCartValue: null }))
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+      parser: 'test-model', output: llmOutput, crossCheck: offlineParse(text, knownNames(SAMPLE_RULES, SAMPLE_CART)),
+    })))
+
+    const res = await parseRuleFromText(text, ctx, fetchImpl)
+    expect(res.status).toBe('ok') // the user still decides…
+    expect(res.warnings.some((w) => w.includes("doesn't leave out a condition"))).toBe(true) // …but is warned
+    expect(res.checkNote).toBeNull()
+  })
+
+  it('adds no cross-check when the offline parser was the parser', async () => {
+    const fetchImpl = async (_url, init) => {
+      const result = await handleParseRule(JSON.parse(init.body), {})
+      return new Response(JSON.stringify(result.json), { status: result.status })
+    }
+    const res = await parseRuleFromText('Rs.100 flat discount on all Flipkart items', ctx, fetchImpl)
+    expect(res.checkNote).toBeNull()
   })
 })
 

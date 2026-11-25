@@ -61,7 +61,7 @@ function Preview({ preview }) {
   )
 }
 
-export default function RuleConfirmation({ rule, assumptions, warnings, parser, parserNote, preview, onConfirm, onDiscard }) {
+export default function RuleConfirmation({ rule, assumptions, warnings, parser, parserNote, checkNote, preview, onConfirm, onDiscard }) {
   const isCart = rule.scope === 'cart'
 
   return (
@@ -90,6 +90,7 @@ export default function RuleConfirmation({ rule, assumptions, warnings, parser, 
 
       <div style={S.parser}>
         Parsed by {parser === 'offline' ? 'the built-in offline parser' : parser}.{parserNote ? ` ${parserNote}` : ''}
+        {checkNote && <span style={{ color: '#1e5c2c' }}> ✓ {checkNote}</span>}
       </div>
 
       <div style={S.actions}>

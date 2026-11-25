@@ -106,6 +106,7 @@ export default function RuleInput({ rules, cartItems, onAddRule }) {
           warnings={result.warnings}
           parser={result.parser}
           parserNote={result.parserNote}
+          checkNote={result.checkNote}
           preview={previewRule(cartItems, rules, result.rule)}
           onConfirm={handleConfirm}
           onDiscard={() => setResult(null)}

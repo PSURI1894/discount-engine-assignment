@@ -5,10 +5,12 @@
  * (api/parse-rule.js) and the Vite dev server (vite.config.js).
  *
  * Request:  { text, knownBrands?, knownPlatforms? }
- * Response: { parser, parserNote?, output }
- *   parser  — the model name, or "offline" for the built-in parser
- *   output  — the parser's raw reply (string from an LLM, object from the
- *             offline parser). The client parses and validates it.
+ * Response: { parser, parserNote?, output, crossCheck? }
+ *   parser     — the model name, or "offline" for the built-in parser
+ *   output     — the parser's raw reply (string from an LLM, object from the
+ *                offline parser). The client parses and validates it.
+ *   crossCheck — when an LLM answered: the offline parser's reading of the same
+ *                text, so the client can flag disagreements (e.g. a dropped condition).
  *
  * Configuration (environment variables, server-side only):
  *   LLM_API_KEY   — when absent, the offline parser is used (no cost)
@@ -58,7 +60,7 @@ export async function handleParseRule(body, env = {}, { fetchImpl = fetch, log =
       user: buildUserPrompt(text, context),
       fetchImpl,
     })
-    return reply(200, { parser: model, output })
+    return reply(200, { parser: model, output, crossCheck: offlineParse(text, context) })
   } catch (err) {
     const reason = err?.name === 'TimeoutError' ? 'timed out' : err?.message || 'unknown error'
     log.error?.(`[parse-rule] LLM call failed: ${reason}`)
