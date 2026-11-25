@@ -1,2 +1,8 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+
+/* Rules and cart side by side. minmax(0, 1fr) lets the columns shrink below their
+   content width (wide tables scroll inside their own box instead of pushing the
+   page wider); on narrow screens the two panels stack. */
+.upload-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+@media (max-width: 900px) { .upload-grid { grid-template-columns: minmax(0, 1fr); } }

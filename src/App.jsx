@@ -22,19 +22,19 @@ import { formatRupees as rs, formatRuleValue } from './engine/format.js'
 // ── Column definitions ───────────────────────────────────────────
 
 const capitalise = (v) => v.charAt(0).toUpperCase() + v.slice(1)
+const nowrap = (v) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>
 
 const RULES_COLUMNS = [
-  { key: 'ruleId',       label: 'Rule ID' },
+  { key: 'ruleId',       label: 'Rule ID',    render: nowrap },
   { key: 'scope',        label: 'Scope',      render: capitalise },
   { key: 'appliesTo',    label: 'Applies To', render: (v, row) => (row.scope === 'cart' ? 'Entire cart' : v) },
-  { key: 'type',         label: 'Type',       render: capitalise },
   { key: 'value',        label: 'Value',      render: (v, row) => formatRuleValue(row) },
   { key: 'minCartValue', label: 'Condition',  render: (v) => (v ? `Cart total ≥ ${rs(v)}` : '—') },
   { key: 'stackable',    label: 'Stackable',  render: (v) => (v ? 'Yes' : 'No') },
 ]
 
 const CART_COLUMNS = [
-  { key: 'itemId',    label: 'Item' },
+  { key: 'itemId',    label: 'Item', render: nowrap },
   { key: 'product',   label: 'Product' },
   { key: 'brand',     label: 'Brand' },
   { key: 'platform',  label: 'Platform' },
@@ -42,7 +42,7 @@ const CART_COLUMNS = [
 ]
 
 const RESULTS_COLUMNS = [
-  { key: 'itemId',    label: 'Item' },
+  { key: 'itemId',    label: 'Item', render: nowrap },
   { key: 'product',   label: 'Product' },
   { key: 'basePrice', label: 'Base Price',  render: (v) => rs(v) },
   { key: 'finalPrice',label: 'Final Price',
@@ -94,10 +94,9 @@ const S = {
   logoTxt: { fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' },
   logoSpan:{ color: '#FF5800' },
   headerSub: { fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.07em' },
-  main:    { maxWidth: 960, margin: '0 auto', padding: '1.8rem 1.5rem' },
+  main:    { maxWidth: 1180, margin: '0 auto', padding: '1.8rem 1.5rem' },
   section: { background: '#fff', border: '1px solid #CECECE', borderRadius: 6, padding: '1.2rem 1.4rem', marginBottom: '1.2rem' },
   sectionTitle: { fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 14, color: '#131A48', marginBottom: '0.7rem', paddingBottom: 6, borderBottom: '2px solid #FF5800', display: 'inline-block' },
-  grid2:   { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' },
   btn:     {
     background: '#FF5800', color: '#fff', border: 'none', borderRadius: 4,
     padding: '0.65rem 2rem', fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -105,6 +104,7 @@ const S = {
   },
   hint:    { fontSize: 12, color: '#888', marginBottom: '0.6rem' },
   linkBtn: { background: 'none', border: 'none', padding: 0, color: '#c0392b', fontSize: 11, textDecoration: 'underline', cursor: 'pointer' },
+  addedTag: { fontSize: 10, color: '#888', marginTop: 2 },
   notice:  { background: '#eef6f0', border: '1px solid #b9dcc3', borderRadius: 4, padding: '0.5rem 0.7rem', marginTop: '0.5rem', fontSize: 12, color: '#1e5c2c' },
   tag: (color, bg) => ({
     display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
@@ -178,24 +178,28 @@ export default function App() {
     setAddedRules((prev) => prev.filter((r) => r.ruleId !== ruleId))
   }
 
-  const rulesColumns = [
-    ...RULES_COLUMNS,
-    {
-      key: 'source',
-      label: 'Source',
-      render: (_, row) =>
-        addedIds.has(row.ruleId) ? (
-          <span style={{ whiteSpace: 'nowrap' }}>
-            Added{' '}
-            <button type="button" style={S.linkBtn} onClick={() => handleRemoveRule(row.ruleId)} aria-label={`Remove ${row.ruleId}`}>
-              remove
-            </button>
-          </span>
-        ) : (
-          'File'
-        ),
-    },
-  ]
+  // Rules added in plain English are marked under their ID, with a remove link.
+  const rulesColumns = RULES_COLUMNS.map((col) =>
+    col.key !== 'ruleId'
+      ? col
+      : {
+          ...col,
+          render: (id) =>
+            addedIds.has(id) ? (
+              <span style={{ whiteSpace: 'nowrap' }}>
+                {id}
+                <div style={S.addedTag}>
+                  added ·{' '}
+                  <button type="button" style={S.linkBtn} onClick={() => handleRemoveRule(id)} aria-label={`Remove ${id}`}>
+                    remove
+                  </button>
+                </div>
+              </span>
+            ) : (
+              nowrap(id)
+            ),
+        }
+  )
 
   const keptCartNote = () =>
     cartItems.length > 0 ? ['Nothing was loaded from this file, so the previous cart is unchanged.'] : []
@@ -255,7 +259,7 @@ export default function App() {
       <div style={S.main}>
 
         {/* Upload row */}
-        <div style={S.grid2}>
+        <div className="upload-grid">
           {/* Rules upload */}
           <div style={S.section}>
             <div style={S.sectionTitle}>Discount Rules</div>
