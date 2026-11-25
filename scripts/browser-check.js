@@ -145,7 +145,7 @@ try {
   record('PDF read in the browser', await waitFor(has('Loaded 3 items from cart-small-order.pdf')))
   record('new cart re-priced, below the minimum → Rs.3,437, no cart offer', (await total()) === 'Rs.3,437' && !(await js(has('Cart offer:'))), `total: ${await total()}`)
   await click('Customer view')
-  record('"Add Rs.563 more" hint for the shopper', await waitFor(has('Add Rs.563 more to get 10% off your cart.')))
+  record('"Rs.563 away" hint for the shopper', await waitFor(has("You're Rs.563 away from 10% off your cart.")))
   await click('Merchant view')
 
   await upload('Upload cart.pdf', 'cart-with-errors.pdf')

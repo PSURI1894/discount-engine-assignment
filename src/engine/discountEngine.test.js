@@ -54,6 +54,12 @@ describe('customer-facing explanations and status', () => {
     expect(results[id].reasoning).toBe(reasoning)
   })
 
+  it('gives the checkout only the offers applied, without comparisons', () => {
+    expect(results['ITEM-01'].offerLabel).toBe('Amazon India offer: 15% off')
+    expect(results['ITEM-02'].offerLabel).toBe('Natura Casa offer: Rs.150 off + Flipkart offer: 10% off')
+    expect(results['ITEM-04'].offerLabel).toBe('No offers available for LivSpace Pro products on Noon')
+  })
+
   it('stays accurate after a new rule is added', () => {
     const flipkartFlat100 = makeRule({ ruleId: 'RULE-05', scope: 'platform', appliesTo: 'Flipkart', type: 'flat', value: 100, stackable: false })
     const updated = byId(processCart(SAMPLE_CART, [...SAMPLE_RULES, flipkartFlat100]))

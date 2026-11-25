@@ -3,9 +3,10 @@
  *
  * The cart as a shopper sees it at checkout: per item, one final price (with
  * the original price struck through when discounted) and one offer label with
- * the saving — "one final price, one offer label, no surprises". No rule IDs or
- * engine statuses. The labels are the engine's own explanations, so this view
- * can never disagree with the merchant view.
+ * the saving — "one final price, one offer label, no surprises". No rule IDs,
+ * engine statuses, or offers the customer didn't get: the label is the engine's
+ * offerLabel, built from the same applied rules as the merchant explanation, so
+ * the two views can never disagree.
  */
 
 import { formatRupees as rs } from '../engine/format.js'
@@ -37,8 +38,8 @@ export default function CheckoutView({ pricing, nudge }) {
             <div style={S.product}>{item.product}</div>
             <div style={S.meta}>{item.brand} · {item.platform}</div>
             {item.totalDiscount > 0
-              ? <div style={S.offer}>{item.reasoning} · You save {rs(item.totalDiscount)}</div>
-              : <div style={S.noOffer}>{item.reasoning}</div>}
+              ? <div style={S.offer}>{item.offerLabel} · You save {rs(item.totalDiscount)}</div>
+              : <div style={S.noOffer}>{item.offerLabel}</div>}
           </div>
           <div style={S.prices}>
             {item.totalDiscount > 0 && <div style={S.was}>{rs(item.basePrice)}</div>}

@@ -38,7 +38,8 @@
  *   skippedRules:  string[]
  *   status:        "best" | "stacked" | "applied" | "none"
  *                  — best: won against other offers; stacked: more than one offer applied
- *   reasoning:     string   — customer-readable explanation
+ *   reasoning:     string   — full explanation, incl. which offers it beat (merchant view)
+ *   offerLabel:    string   — just the offer(s) the customer gets (checkout view)
  * }
  *
  * CartOffer {
@@ -140,26 +141,36 @@ function shortOfferName(rule) {
   return `${rule.appliesTo} ${formatRuleValue(rule)}`
 }
 
+const noOffer = (item) => `No offers available for ${item.brand} products on ${item.platform}`
+
+/** One applied offer as the customer reads it: "Amazon India offer: 15% off". */
+function appliedOfferText({ rule, amount }) {
+  const capped = rule.type === 'flat' && amount < rule.value
+  return `${ruleToReasoning(rule)}${capped ? ' (limited to the item price)' : ''}`
+}
+
+/** The checkout label: only the offers the customer actually gets. */
+function offerLabel(item, applied) {
+  return applied.length === 0 ? noOffer(item) : applied.map(appliedOfferText).join(' + ')
+}
+
 /**
- * Explains an item's price in one line, e.g.
+ * The full explanation, including which offers the winner beat, e.g.
  *   "Amazon India offer: 15% off (better than Natura Casa Rs.150 off)"
  *   "Natura Casa offer: Rs.150 off (same saving as Amazon India 15% off)"
  *   "Natura Casa offer: Rs.150 off + Flipkart offer: 10% off"
  *   "No offers available for LivSpace Pro products on Noon"
  */
 function explainItem(item, applied, skipped) {
-  if (applied.length === 0) {
-    return `No offers available for ${item.brand} products on ${item.platform}`
-  }
+  if (applied.length === 0) return noOffer(item)
   return applied
-    .map(({ rule, amount }, i) => {
-      let text = ruleToReasoning(rule)
-      if (rule.type === 'flat' && amount < rule.value) text += ' (limited to the item price)'
-      if (i === 0 && skipped.length > 0 && !rule.stackable) {
+    .map((entry, i) => {
+      let text = appliedOfferText(entry)
+      if (i === 0 && skipped.length > 0 && !entry.rule.stackable) {
         // Losing offers are compared on the same base price the winner was chosen on.
         const saving = (r) => calculateDiscountAmount(item.basePrice, r)
-        const worse = skipped.filter((r) => saving(r) < amount)
-        const tied = skipped.filter((r) => saving(r) >= amount)
+        const worse = skipped.filter((r) => saving(r) < entry.amount)
+        const tied = skipped.filter((r) => saving(r) >= entry.amount)
         const parts = []
         if (worse.length > 0) parts.push(`better than ${worse.map(shortOfferName).join(', ')}`)
         if (tied.length > 0) parts.push(`same saving as ${tied.map(shortOfferName).join(', ')}`)
@@ -198,6 +209,7 @@ export function applyDiscounts(item, rules) {
     skippedRules: skipped.map((r) => r.ruleId),
     status: itemStatus(applied, skipped),
     reasoning: explainItem(item, applied, skipped),
+    offerLabel: offerLabel(item, applied),
   }
 }
 

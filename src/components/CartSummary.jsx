@@ -34,13 +34,14 @@ const WORDING = {
     beforeOffer: 'Cart total before offer',
     total: (hasOffer) => (hasOffer ? 'Final cart total' : 'Cart total'),
     offerNote: (line, subtotal) => `Your cart total of ${rs(subtotal)} meets the ${rs(line.minCartValue)} minimum (${line.ruleId})`,
-    nudge: (n) => `No cart offer yet: the cart is ${rs(n.shortfall)} short of ${n.ruleId} (${n.offer} at ${rs(n.minCartValue)} or more).`,
+    nudge: (n) => `No cart offer yet: the cart is ${rs(n.shortfall)} short of ${n.ruleId} (${n.offer} at ${rs(n.minCartValue)} or more, counted after item offers).`,
   },
   customer: {
     beforeOffer: 'Items total',
     total: () => 'You pay',
     offerNote: (line) => `For carts of ${rs(line.minCartValue)} or more`,
-    nudge: (n) => `Add ${rs(n.shortfall)} more to get ${n.offer} your cart.`,
+    // Not "add Rs.X more": an added item may itself be discounted, so a Rs.X item can fall short.
+    nudge: (n) => `You're ${rs(n.shortfall)} away from ${n.offer} your cart. It applies from ${rs(n.minCartValue)}, counted after item offers.`,
   },
 }
 

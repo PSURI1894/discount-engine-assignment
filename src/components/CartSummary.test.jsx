@@ -28,9 +28,9 @@ describe('CartSummary', () => {
     const nudge = { ruleId: 'RULE-04', shortfall: 1, minCartValue: 4000, offer: '10% off' }
     const pricing = priceCart([item({ basePrice: 3999 })], [RULE_04])
     expect(renderToStaticMarkup(<CartSummary pricing={pricing} nudge={nudge} />))
-      .toContain('No cart offer yet: the cart is Rs.1 short of RULE-04 (10% off at Rs.4,000 or more).')
+      .toContain('No cart offer yet: the cart is Rs.1 short of RULE-04 (10% off at Rs.4,000 or more, counted after item offers).')
     expect(renderToStaticMarkup(<CartSummary pricing={pricing} nudge={nudge} variant="customer" />))
-      .toContain('Add Rs.1 more to get 10% off your cart.')
+      .toContain('Rs.1 away from 10% off your cart. It applies from Rs.4,000, counted after item offers.') // "You're" is HTML-escaped
   })
 
   it('uses checkout wording without rule IDs in the customer variant', () => {
