@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "make:pdfs": "node scripts/make-sample-pdfs.js",
-    "eval:parser": "node scripts/eval-parser.js"
+    "eval:parser": "node scripts/eval-parser.js",
+    "check:browser": "node scripts/browser-check.js"
   },
   "dependencies": {
     "papaparse": "^5.4.1",
