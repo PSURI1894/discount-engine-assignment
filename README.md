@@ -84,14 +84,14 @@ sample-data/
 
 ## Expected results for the sample data
 
-| Item    | Base Price | Final Price | Reasoning                              |
-|---------|-----------|-------------|----------------------------------------|
-| ITEM-01 | Rs.1,299  | Rs.1,104    | Platform offer: 15% off (beats Rs.150) |
-| ITEM-02 | Rs.849    | Rs.629      | Brand offer: Rs.150 off + Platform 10% |
-| ITEM-03 | Rs.599    | Rs.509      | Platform offer: 15% off                |
-| ITEM-04 | Rs.2,499  | Rs.2,499    | No offers available                    |
-| ITEM-05 | Rs.449    | Rs.382      | Platform offer: 15% off                |
-| ITEM-06 | Rs.899    | Rs.809      | Platform offer: 10% off                |
+| Item    | Base Price | Final Price | Offer applied (as the customer sees it)                          | Status           |
+|---------|-----------|-------------|-------------------------------------------------------------------|------------------|
+| ITEM-01 | Rs.1,299  | Rs.1,104    | Amazon India offer: 15% off (better than Natura Casa Rs.150 off)  | Max discount     |
+| ITEM-02 | Rs.849    | Rs.629      | Natura Casa offer: Rs.150 off + Flipkart offer: 10% off           | Stacked          |
+| ITEM-03 | Rs.599    | Rs.509      | Amazon India offer: 15% off                                       | Discount applied |
+| ITEM-04 | Rs.2,499  | Rs.2,499    | No offers available for LivSpace Pro products on Noon             | No offer         |
+| ITEM-05 | Rs.449    | Rs.382      | Amazon India offer: 15% off                                       | Discount applied |
+| ITEM-06 | Rs.899    | Rs.809      | Flipkart offer: 10% off                                           | Discount applied |
 
 | Cart                    | Amount    |
 |-------------------------|-----------|

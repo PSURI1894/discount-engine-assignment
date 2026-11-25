@@ -26,7 +26,7 @@ describe('item-level discounts — expected results from the brief', () => {
   it('ITEM-04: no rules match, base price with a "no offer" note', () => {
     expect(results['ITEM-04'].finalPrice).toBe(2499)
     expect(results['ITEM-04'].appliedRules).toEqual([])
-    expect(results['ITEM-04'].reasoning).toBe('No offers available')
+    expect(results['ITEM-04'].reasoning).toMatch(/^No offers available/)
   })
 
   it('ITEM-06: stackable RULE-03 applies on its own', () => {
@@ -36,6 +36,42 @@ describe('item-level discounts — expected results from the brief', () => {
 
   it('cart total before any cart offer is Rs.5,932', () => {
     expect(cartTotal(Object.values(results))).toBe(5932)
+  })
+})
+
+describe('customer-facing explanations and status', () => {
+  const results = byId(processCart(SAMPLE_CART, SAMPLE_RULES))
+
+  it.each([
+    ['ITEM-01', 'best', 'Amazon India offer: 15% off (better than Natura Casa Rs.150 off)'],
+    ['ITEM-02', 'stacked', 'Natura Casa offer: Rs.150 off + Flipkart offer: 10% off'],
+    ['ITEM-03', 'applied', 'Amazon India offer: 15% off'],
+    ['ITEM-04', 'none', 'No offers available for LivSpace Pro products on Noon'],
+    ['ITEM-05', 'applied', 'Amazon India offer: 15% off'],
+    ['ITEM-06', 'applied', 'Flipkart offer: 10% off'],
+  ])('%s → %s: "%s"', (id, status, reasoning) => {
+    expect(results[id].status).toBe(status)
+    expect(results[id].reasoning).toBe(reasoning)
+  })
+
+  it('stays accurate after a new rule is added', () => {
+    const flipkartFlat100 = makeRule({ ruleId: 'RULE-05', scope: 'platform', appliesTo: 'Flipkart', type: 'flat', value: 100, stackable: false })
+    const updated = byId(processCart(SAMPLE_CART, [...SAMPLE_RULES, flipkartFlat100]))
+    expect(updated['ITEM-02'].reasoning).toBe('Natura Casa offer: Rs.150 off (better than Flipkart Rs.100 off) + Flipkart offer: 10% off')
+    expect(updated['ITEM-02'].finalPrice).toBe(629)
+    expect(updated['ITEM-06'].reasoning).toBe('Flipkart offer: Rs.100 off + Flipkart offer: 10% off')
+    expect(updated['ITEM-06'].finalPrice).toBe(719)
+  })
+
+  it('says so when a flat offer is limited to the item price', () => {
+    const nordicFlat500 = makeRule({ ruleId: 'RULE-X', scope: 'brand', appliesTo: 'Nordic Basics', type: 'flat', value: 500, stackable: false })
+    const res = applyDiscounts(item({ brand: 'Nordic Basics', basePrice: 449 }), [nordicFlat500])
+    expect(res.reasoning).toBe('Nordic Basics offer: Rs.500 off (limited to the item price)')
+  })
+
+  it('formats large flat values the Indian way', () => {
+    const big = makeRule({ ruleId: 'RULE-X', scope: 'brand', appliesTo: 'Test Brand', type: 'flat', value: 1500, stackable: false })
+    expect(applyDiscounts(item({ basePrice: 20000 }), [big]).reasoning).toBe('Test Brand offer: Rs.1,500 off')
   })
 })
 

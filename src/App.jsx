@@ -60,13 +60,26 @@ const RESULTS_COLUMNS = [
   {
     key: 'reasoning',
     label: 'Offer Applied',
-    render: (v) => (
-      <span style={{ color: v === 'No offers available' ? '#888' : '#131A48', fontStyle: v === 'No offers available' ? 'italic' : 'normal' }}>
+    render: (v, row) => (
+      <span style={{ color: row.status === 'none' ? '#888' : '#131A48', fontStyle: row.status === 'none' ? 'italic' : 'normal' }}>
         {v}
       </span>
     ),
   },
+  { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
 ]
+
+const STATUS_BADGES = {
+  best:    { text: 'Max discount',     color: '#7a4a00', bg: '#fff1d6' },
+  stacked: { text: 'Stacked',          color: '#1a3e8c', bg: '#e3ecff' },
+  applied: { text: 'Discount applied', color: '#1e5c2c', bg: '#e3f5e8' },
+  none:    { text: 'No offer',         color: '#666',    bg: '#eeeeee' },
+}
+
+function StatusBadge({ status }) {
+  const badge = STATUS_BADGES[status] ?? STATUS_BADGES.none
+  return <span style={{ ...S.tag(badge.color, badge.bg), whiteSpace: 'nowrap' }}>{badge.text}</span>
+}
 
 // ── Styles ───────────────────────────────────────────────────────
 

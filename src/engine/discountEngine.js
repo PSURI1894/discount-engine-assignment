@@ -36,6 +36,8 @@
  *   totalDiscount: number
  *   appliedRules:  string[]
  *   skippedRules:  string[]
+ *   status:        "best" | "stacked" | "applied" | "none"
+ *                  — best: won against other offers; stacked: more than one offer applied
  *   reasoning:     string   — customer-readable explanation
  * }
  *
@@ -117,12 +119,48 @@ function pickAndApply(startPrice, rules) {
   return { price, applied, skipped }
 }
 
-/**
- * Builds the customer-facing reasoning string for an applied rule.
- */
+// ── Customer-facing explanations ─────────────────────────────────
+// Built from the rules that were actually applied, so they stay accurate
+// whatever rules are loaded or added.
+
+/** "Amazon India offer: 15% off", "Cart offer: 10% off". */
 function ruleToReasoning(rule) {
-  const scopeLabel = { brand: 'Brand', platform: 'Platform', cart: 'Cart' }[rule.scope] ?? 'Special'
-  return `${scopeLabel} offer: ${formatRuleValue(rule)}`
+  const name = rule.scope === 'cart' ? 'Cart' : rule.appliesTo
+  return `${name} offer: ${formatRuleValue(rule)}`
+}
+
+/** "Natura Casa Rs.150 off" — the short form used when naming an offer that lost. */
+function shortOfferName(rule) {
+  return `${rule.appliesTo} ${formatRuleValue(rule)}`
+}
+
+/**
+ * Explains an item's price in one line, e.g.
+ *   "Amazon India offer: 15% off (better than Natura Casa Rs.150 off)"
+ *   "Natura Casa offer: Rs.150 off + Flipkart offer: 10% off"
+ *   "No offers available for LivSpace Pro products on Noon"
+ */
+function explainItem(item, applied, skipped) {
+  if (applied.length === 0) {
+    return `No offers available for ${item.brand} products on ${item.platform}`
+  }
+  return applied
+    .map(({ rule, amount }, i) => {
+      let text = ruleToReasoning(rule)
+      if (rule.type === 'flat' && amount < rule.value) text += ' (limited to the item price)'
+      if (i === 0 && skipped.length > 0 && !rule.stackable) {
+        text += ` (better than ${skipped.map(shortOfferName).join(', ')})`
+      }
+      return text
+    })
+    .join(' + ')
+}
+
+function itemStatus(applied, skipped) {
+  if (applied.length === 0) return 'none'
+  if (applied.length > 1) return 'stacked'
+  if (skipped.length > 0) return 'best'
+  return 'applied'
 }
 
 /**
@@ -144,9 +182,8 @@ export function applyDiscounts(item, rules) {
     totalDiscount: item.basePrice - finalPrice,
     appliedRules: applied.map(({ rule }) => rule.ruleId),
     skippedRules: skipped.map((r) => r.ruleId),
-    reasoning: applied.length > 0
-      ? applied.map(({ rule }) => ruleToReasoning(rule)).join(' + ')
-      : 'No offers available',
+    status: itemStatus(applied, skipped),
+    reasoning: explainItem(item, applied, skipped),
   }
 }
 
