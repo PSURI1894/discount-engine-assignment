@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "make:pdfs": "node scripts/make-sample-pdfs.js"
+    "make:pdfs": "node scripts/make-sample-pdfs.js",
+    "eval:parser": "node scripts/eval-parser.js"
   },
   "dependencies": {
     "papaparse": "^5.4.1",
