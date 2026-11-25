@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/PSURI1894/discount-engine-assignment/actions/workflows/ci.yml/badge.svg)](https://github.com/PSURI1894/discount-engine-assignment/actions/workflows/ci.yml)
 
-**Live demo:** _add the Vercel URL here after deploying_
+**Live demo:** https://discount-engine-assignment-tan.vercel.app
 
 A checkout pricing engine. For every cart item it applies the offer that saves the customer the most,
 stacks stackable offers on top, applies cart-level offers to the total, and explains the result in
