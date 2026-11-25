@@ -25,7 +25,8 @@ The live deployment URL must be in your README before submission.
 
 1. Upload `sample-data/rules.csv` as the discount rules input
 2. Upload `sample-data/cart.csv` as the cart input
-3. Click **Calculate Discounts**
+3. Prices appear straight away and recalculate whenever the rules or the cart change
+   (the original **Calculate Discounts** button was removed for this reason)
 
 ## Project structure
 

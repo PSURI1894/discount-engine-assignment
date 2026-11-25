@@ -1,11 +1,12 @@
 /**
  * App.jsx
  *
- * Top-level component. Manages state for rules, cart items, and results.
- * Wires together CSV upload → parse → engine → display.
+ * Top-level component. Holds the active rules and cart; prices are derived
+ * from them, so any change to either re-runs the engine automatically.
+ * Wires together input adapters → engine → display.
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import CsvUploader from './components/CsvUploader.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
@@ -98,11 +99,7 @@ const S = {
     padding: '0.65rem 2rem', fontSize: 13, fontWeight: 700, cursor: 'pointer',
     letterSpacing: '0.04em', textTransform: 'uppercase',
   },
-  btnDisabled: {
-    background: '#CECECE', color: '#fff', border: 'none', borderRadius: 4,
-    padding: '0.65rem 2rem', fontSize: 13, fontWeight: 700, cursor: 'not-allowed',
-    letterSpacing: '0.04em', textTransform: 'uppercase',
-  },
+  hint:    { fontSize: 12, color: '#888', marginBottom: '0.6rem' },
   tag: (color, bg) => ({
     display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
     borderRadius: 20, background: bg, color, textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -120,31 +117,36 @@ export default function App() {
   const [cartErrors, setCartErrors] = useState([])
   const [cartFileName, setCartFileName]   = useState('')
 
-  const [results, setResults]       = useState(null)
+  // Prices are derived state: re-computed whenever the rules or the cart change.
+  const results = useMemo(
+    () => (cartItems.length > 0 ? priceCart(cartItems, rules) : null),
+    [cartItems, rules]
+  )
 
   // ── Handlers ──
+  // A file that yields nothing usable never wipes out what is already loaded.
 
   function handleRulesLoad(csvText, fileName) {
     const { data, errors } = parseRulesCSV(csvText)
+    if (data.length === 0) {
+      setRulesErr(rules.length > 0 ? [...errors, 'Nothing was loaded from this file, so the previous rules are still active.'] : errors)
+      return
+    }
     setRules(data)
     setRulesErr(errors)
     setRulesFileName(fileName)
-    setResults(null) // clear stale results
   }
 
   function handleCartLoad(csvText, fileName) {
     const { data, errors } = parseCartCSV(csvText)
+    if (data.length === 0) {
+      setCartErrors(cartItems.length > 0 ? [...errors, 'Nothing was loaded from this file, so the previous cart is unchanged.'] : errors)
+      return
+    }
     setCartItems(data)
     setCartErrors(errors)
     setCartFileName(fileName)
-    setResults(null)
   }
-
-  function handleCalculate() {
-    setResults(priceCart(cartItems, rules))
-  }
-
-  const canCalculate = rules.length > 0 && cartItems.length > 0
 
   // ── Render ──
 
@@ -203,28 +205,19 @@ export default function App() {
           </div>
         </div>
 
-        {/* Calculate button */}
-        <div style={{ textAlign: 'center', marginBottom: '1.2rem' }}>
-          <button
-            style={canCalculate ? S.btn : S.btnDisabled}
-            onClick={handleCalculate}
-            disabled={!canCalculate}
-          >
-            Calculate Discounts
-          </button>
-          {!canCalculate && (
-            <div style={{ fontSize: 11, color: '#888', marginTop: 6 }}>
-              Upload both files to calculate
-            </div>
-          )}
-        </div>
-
-        {/* Results */}
-        {results && (
+        {/* Results — recalculated automatically */}
+        {results ? (
           <div style={S.section}>
             <div style={S.sectionTitle}>Cart Summary</div>
+            {rules.length === 0 && (
+              <div style={S.hint}>No discount rules loaded yet — showing base prices.</div>
+            )}
             <DataTable columns={RESULTS_COLUMNS} rows={results.items} />
             <CartSummary pricing={results} />
+          </div>
+        ) : (
+          <div style={{ ...S.hint, textAlign: 'center', marginBottom: '1.2rem' }}>
+            Load a cart to see prices. They update automatically whenever the rules or the cart change.
           </div>
         )}
 
