@@ -18,22 +18,48 @@
  */
 
 // ── Conditions the engine cannot apply ───────────────────────────
-const MONTHS = 'january|february|march|april|june|july|august|september|october|november|december|jan|feb|apr|jun|jul|aug|sept?|oct|nov|dec'
+// Each list is a set of regex phrases matched as whole words. A match means the
+// description needs a condition the rule model can't hold, so it is refused.
+
+/** A case-insensitive regex matching any of the phrases as whole words. */
+const anyOf = (phrases) => new RegExp(`\\b(?:${phrases.join('|')})\\b`, 'i')
+
+const MONTHS = [
+  'january', 'february', 'march', 'april', 'june', 'july', 'august', 'september', 'october', 'november', 'december',
+  'jan', 'feb', 'apr', 'jun', 'jul', 'aug', 'sept?', 'oct', 'nov', 'dec', // "may" and "mar" are left out: too common as words
+]
+const TIME_LIMITS = [
+  'until', 'till', 'valid (?:till|until|through|from)', 'expires?', 'expiry',
+  'today', 'tomorrow', 'tonight', 'this (?:week|weekend|month|year)', '(?:next|for) \\d+ (?:days?|weeks?|months?)',
+  'weekends?', 'weekdays?', '(?:mon|tues|wednes|thurs|fri|satur|sun)days?',
+  'diwali', 'holi', 'festive', 'festival', 'season', 'sale', ...MONTHS,
+  'before noon', 'after noon', 'afternoon', 'morning', 'evening', 'midnight', '\\d{1,2}\\s*(?:am|pm)', "o'clock", 'hours?',
+]
+const CUSTOMER_LIMITS = [
+  'first[- ]time', 'new (?:customers?|users?|buyers?|shoppers?)', 'returning', 'existing customers?',
+  'members?', 'membership', 'prime', 'loyal', 'loyalty', 'vip', 'students?', 'employees?', 'staff',
+  'per (?:customer|person|user|order)', 'each customer', 'one per', 'limit \\d+',
+]
+const PAYMENT_METHODS = [
+  'credit cards?', 'debit cards?', 'cards?', 'upi', 'wallets?', 'paytm', 'cash on delivery', 'cod',
+  'bank', 'hdfc', 'icici', 'sbi', 'axis', 'kotak', 'emi',
+]
+const QUANTITIES = [
+  'buy \\d+', 'bogo', 'get \\d+ free', 'quantity', 'quantities',
+  '\\d+\\s*(?:\\+\\s*|or more\\s+)?(?:items?|products?|pieces?|units?|things?|qty)', // "3 items", "3+ items", "2 or more products"
+]
+const CAPS = ['up to', 'upto', 'max', 'maximum', 'capped', 'at most']
+const MAXIMUMS = ['under', 'below', 'less than', 'lower than']
+const EXCLUSIONS = ['except', 'excluding', 'excludes?', 'excluded', 'other than', 'apart from', 'but not', 'not on']
+
 const UNSUPPORTED_PATTERNS = [
-  [new RegExp(`\\b(until|till|valid (?:till|until|through|from)|expires?|expiry|today|tomorrow|tonight|this (?:week|weekend|month|year)|(?:next|for) \\d+ (?:days?|weeks?|months?)|weekends?|weekdays?|(?:mon|tues|wednes|thurs|fri|satur|sun)days?|diwali|holi|festive|festival|season|sale|${MONTHS}|before noon|after noon|afternoon|morning|evening|midnight|\\d{1,2}\\s*(?:am|pm)|o'clock|hours?)\\b`, 'i'),
-    'it has a time limit, and the engine applies rules for as long as they are active'],
-  [/\b(first[- ]time|new (?:customers?|users?|buyers?|shoppers?)|returning|existing customers?|members?|membership|prime|loyal|loyalty|vip|students?|employees?|staff|per (?:customer|person|user|order)|each customer|one per|limit \d+)\b/i,
-    'it targets a type of customer or limits how often it can be used, and the engine treats every customer and order the same'],
-  [/\b(credit cards?|debit cards?|cards?|upi|wallets?|paytm|cash on delivery|cod|bank|hdfc|icici|sbi|axis|kotak|emi)\b/i,
-    "it depends on how the customer pays, which the engine doesn't know"],
-  [/\b(buy \d+|bogo|get \d+ free|\d+\s*(?:\+\s*|or more\s+)?(?:items?|products?|pieces?|units?|things?|qty)|quantity|quantities)\b|\b\d+\s*\+\s*(?:items?|products?|pieces?|units?)/i,
-    'it depends on quantities, and the engine only supports brand, platform and cart-value rules'],
-  [/\b(up to|upto|max|maximum|capped|at most)\b/i,
-    '"up to" or capped amounts don\'t say exactly how much to take off'],
-  [/\b(under|below|less than|lower than)\b/i,
-    'it sets a maximum, and cart rules only support a minimum cart value'],
-  [/\b(except|excluding|excludes?|excluded|other than|apart from|but not|not on)\b/i,
-    'it excludes something, and the engine has no exclusions'],
+  [anyOf(TIME_LIMITS), 'it has a time limit, and the engine applies rules for as long as they are active'],
+  [anyOf(CUSTOMER_LIMITS), 'it targets a type of customer or limits how often it can be used, and the engine treats every customer and order the same'],
+  [anyOf(PAYMENT_METHODS), "it depends on how the customer pays, which the engine doesn't know"],
+  [anyOf(QUANTITIES), 'it depends on quantities, and the engine only supports brand, platform and cart-value rules'],
+  [anyOf(CAPS), '"up to" or capped amounts don\'t say exactly how much to take off'],
+  [anyOf(MAXIMUMS), 'it sets a maximum, and cart rules only support a minimum cart value'],
+  [anyOf(EXCLUSIONS), 'it excludes something, and the engine has no exclusions'],
 ]
 
 // ── Amounts ──────────────────────────────────────────────────────
