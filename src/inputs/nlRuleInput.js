@@ -113,8 +113,7 @@ export function interpretParserOutput(output, { rules = [], cartItems = [] } = {
     type: r.type,
     value: r.value,
     stackable: r.stackable,
-    // Models sometimes send 0 instead of null for "no minimum" on item rules.
-    minCartValue: r.scope === 'cart' ? r.minCartValue : r.minCartValue || null,
+    minCartValue: r.minCartValue, // validateRule treats 0 on an item rule as "no minimum"
   })
 
   if (result.errors) {

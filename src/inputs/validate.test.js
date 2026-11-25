@@ -10,6 +10,7 @@ describe('parseNumber', () => {
     ['Rs. 1,299', 1299],
     ['₹1,299.50', 1299.5],
     ['1,29,999', 129999],
+    ['Rs.849/-', 849],
     ['15%', 15],
   ])('%s → %s', (input, expected) => {
     expect(parseNumber(input)).toBe(expected)
@@ -53,6 +54,20 @@ describe('validateRule', () => {
   it('refuses a minimum cart value on an item rule rather than silently dropping the condition', () => {
     const { errors } = validateRule({ ...good, minCartValue: '2000' })
     expect(errors).toEqual(['a minimum cart value only applies to cart rules, not platform rules'])
+  })
+
+  it('treats a minimum of 0 on an item rule as "no minimum" (spreadsheet exports)', () => {
+    expect(validateRule({ ...good, minCartValue: '0' }).parsed.minCartValue).toBeNull()
+  })
+
+  it('refuses a cart rule limited to a brand rather than silently widening it to the whole cart', () => {
+    const { errors } = validateRule({ ruleId: 'RULE-05', scope: 'cart', appliesTo: 'Natura Casa', type: 'percentage', value: 10, stackable: false, minCartValue: 2000 })
+    expect(errors).toEqual(['a cart rule applies to the whole cart, so it can\'t be limited to "Natura Casa"'])
+  })
+
+  it('refuses a value whose unit contradicts the type', () => {
+    expect(validateRule({ ...good, value: 'Rs.50' }).errors).toEqual(['value "Rs.50" is in rupees, but the type is percentage'])
+    expect(validateRule({ ...good, type: 'flat', value: '15%' }).errors).toEqual(['value "15%" is a percentage, but the type is flat'])
   })
 
   it('lists every problem at once', () => {

@@ -20,14 +20,17 @@ const text = (v) => (isBlank(v) ? '' : String(v).trim())
 const orList = (xs) => xs.map((x) => `"${x}"`).join(' or ')
 
 /**
- * Parses numbers as people write them: 1299, "1,299", "Rs.1,299", "₹ 1,299.00", "15%".
+ * Parses numbers as people write them: 1299, "1,299", "Rs.1,299", "₹ 1,299.00", "Rs.849/-", "15%".
  * Returns null when the input is not a plain non-negative number.
  */
 export function parseNumber(v) {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null
-  const cleaned = text(v).replace(/^(rs\.?|inr|₹)/i, '').replace(/[,\s%]/g, '')
+  const cleaned = text(v).replace(/^(rs\.?|inr|₹)/i, '').replace(/\/-$/, '').replace(/[,\s%]/g, '')
   return /^\d+(\.\d+)?$/.test(cleaned) ? parseFloat(cleaned) : null
 }
+
+// What "applies to" may say on a cart rule — anything narrower would be dropped.
+const WHOLE_CART = /^(entire cart|whole cart|cart|all|all items|everything|any)$/i
 
 /** Accepts true/false, yes/no, y/n, 1/0. Returns null for anything else rather than guessing. */
 export function parseBoolean(v) {
@@ -43,9 +46,9 @@ export function parseBoolean(v) {
  * Input fields: ruleId, scope, appliesTo, type, value, stackable, minCartValue
  * (strings or typed values).
  *
- * Cart rules need a minimum cart value and ignore appliesTo. Brand and platform
- * rules must not carry a minimum cart value: the engine can't attach conditions
- * to item rules, and silently dropping one would make the offer broader than intended.
+ * Conditions are never dropped silently, because that would make an offer
+ * broader than intended: a cart rule can't be limited to a brand or platform,
+ * and a brand or platform rule can't carry a minimum cart value.
  */
 export function validateRule(raw) {
   const errors = []
@@ -53,16 +56,21 @@ export function validateRule(raw) {
   const scope = text(raw.scope).toLowerCase()
   const appliesTo = text(raw.appliesTo)
   const type = text(raw.type).toLowerCase()
+  const valueText = text(raw.value)
   const value = parseNumber(raw.value)
   const stackable = parseBoolean(raw.stackable)
-  const hasMinCartValue = !isBlank(raw.minCartValue)
   const minCartValue = parseNumber(raw.minCartValue)
+  // Spreadsheet exports often put 0 in an unused column; on item rules that means "no minimum".
+  const hasMinCartValue = !isBlank(raw.minCartValue) && !(scope !== 'cart' && minCartValue === 0)
 
   if (!ruleId) errors.push('rule ID is missing')
 
   if (!RULE_SCOPES.includes(scope)) {
     errors.push(`scope must be ${orList(RULE_SCOPES)}, got "${text(raw.scope)}"`)
   } else if (scope === 'cart') {
+    if (appliesTo && !WHOLE_CART.test(appliesTo)) {
+      errors.push(`a cart rule applies to the whole cart, so it can't be limited to "${appliesTo}"`)
+    }
     if (!hasMinCartValue) {
       errors.push('a cart rule needs a minimum cart value')
     } else if (minCartValue === null || minCartValue <= 0) {
@@ -78,9 +86,13 @@ export function validateRule(raw) {
   }
 
   if (value === null || value <= 0) {
-    errors.push(`value must be a positive number, got "${text(raw.value)}"`)
+    errors.push(`value must be a positive number, got "${valueText}"`)
+  } else if (type === 'percentage' && /^(rs|inr|₹)/i.test(valueText)) {
+    errors.push(`value "${valueText}" is in rupees, but the type is percentage`)
+  } else if (type === 'flat' && valueText.includes('%')) {
+    errors.push(`value "${valueText}" is a percentage, but the type is flat`)
   } else if (type === 'percentage' && value > 100) {
-    errors.push(`a percentage discount cannot exceed 100, got "${text(raw.value)}"`)
+    errors.push(`a percentage discount cannot exceed 100, got "${valueText}"`)
   }
 
   if (stackable === null) {
