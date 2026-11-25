@@ -11,7 +11,9 @@ import CsvUploader from './components/CsvUploader.jsx'
 import DataTable from './components/DataTable.jsx'
 import ErrorBanner from './components/ErrorBanner.jsx'
 import CartSummary from './components/CartSummary.jsx'
+import RuleInput from './components/RuleInput.jsx'
 import { parseRulesCSV, parseCartCSV } from './inputs/csvInput.js'
+import { nextRuleId, renumberAddedRules } from './inputs/ruleIds.js'
 import { priceCart } from './engine/discountEngine.js'
 import { formatRupees as rs, formatRuleValue } from './engine/format.js'
 
@@ -100,6 +102,7 @@ const S = {
     letterSpacing: '0.04em', textTransform: 'uppercase',
   },
   hint:    { fontSize: 12, color: '#888', marginBottom: '0.6rem' },
+  linkBtn: { background: 'none', border: 'none', padding: 0, color: '#c0392b', fontSize: 11, textDecoration: 'underline', cursor: 'pointer' },
   tag: (color, bg) => ({
     display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '1px 6px',
     borderRadius: 20, background: bg, color, textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -109,13 +112,19 @@ const S = {
 // ── Component ────────────────────────────────────────────────────
 
 export default function App() {
-  const [rules, setRules]           = useState([])
+  // Rules come from two places: the uploaded file, and rules added in plain
+  // English during the session. A new rules file replaces only the former.
+  const [fileRules, setFileRules]   = useState([])
+  const [addedRules, setAddedRules] = useState([])
   const [rulesErrors, setRulesErr]  = useState([])
   const [rulesFileName, setRulesFileName] = useState('')
 
   const [cartItems, setCartItems]   = useState([])
   const [cartErrors, setCartErrors] = useState([])
   const [cartFileName, setCartFileName]   = useState('')
+
+  const rules = useMemo(() => [...fileRules, ...addedRules], [fileRules, addedRules])
+  const addedIds = useMemo(() => new Set(addedRules.map((r) => r.ruleId)), [addedRules])
 
   // Prices are derived state: re-computed whenever the rules or the cart change.
   const results = useMemo(
@@ -129,13 +138,43 @@ export default function App() {
   function handleRulesLoad(csvText, fileName) {
     const { data, errors } = parseRulesCSV(csvText)
     if (data.length === 0) {
-      setRulesErr(rules.length > 0 ? [...errors, 'Nothing was loaded from this file, so the previous rules are still active.'] : errors)
+      setRulesErr(fileRules.length > 0 ? [...errors, 'Nothing was loaded from this file, so the previous rules are still active.'] : errors)
       return
     }
-    setRules(data)
+    setFileRules(data)
+    setAddedRules((prev) => renumberAddedRules(data, prev))
     setRulesErr(errors)
     setRulesFileName(fileName)
   }
+
+  function handleAddRule(rule) {
+    // The ID was chosen when the rule was parsed; re-check in case rules changed since.
+    const clashes = rules.some((r) => r.ruleId === rule.ruleId)
+    setAddedRules((prev) => [...prev, clashes ? { ...rule, ruleId: nextRuleId(rules) } : rule])
+  }
+
+  function handleRemoveRule(ruleId) {
+    setAddedRules((prev) => prev.filter((r) => r.ruleId !== ruleId))
+  }
+
+  const rulesColumns = [
+    ...RULES_COLUMNS,
+    {
+      key: 'source',
+      label: 'Source',
+      render: (_, row) =>
+        addedIds.has(row.ruleId) ? (
+          <span style={{ whiteSpace: 'nowrap' }}>
+            Added{' '}
+            <button type="button" style={S.linkBtn} onClick={() => handleRemoveRule(row.ruleId)} aria-label={`Remove ${row.ruleId}`}>
+              remove
+            </button>
+          </span>
+        ) : (
+          'File'
+        ),
+    },
+  ]
 
   function handleCartLoad(csvText, fileName) {
     const { data, errors } = parseCartCSV(csvText)
@@ -169,16 +208,17 @@ export default function App() {
               label="rules.csv"
               description="Upload your discount rules CSV"
               onLoad={handleRulesLoad}
-              hasData={rules.length > 0}
+              hasData={fileRules.length > 0}
               fileName={rulesFileName}
             />
             <ErrorBanner errors={rulesErrors} />
             {rules.length > 0 && (
               <div style={{ marginTop: '0.75rem' }}>
                 <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-                  {rules.length} rule{rules.length > 1 ? 's' : ''} loaded
+                  {rules.length} active rule{rules.length > 1 ? 's' : ''}
+                  {addedRules.length > 0 && ` (${fileRules.length} from file, ${addedRules.length} added)`}
                 </div>
-                <DataTable columns={RULES_COLUMNS} rows={rules} />
+                <DataTable columns={rulesColumns} rows={rules} />
               </div>
             )}
           </div>
@@ -203,6 +243,12 @@ export default function App() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Plain-English rule input */}
+        <div style={S.section}>
+          <div style={S.sectionTitle}>Add a rule in plain English</div>
+          <RuleInput rules={rules} cartItems={cartItems} onAddRule={handleAddRule} />
         </div>
 
         {/* Results — recalculated automatically */}
