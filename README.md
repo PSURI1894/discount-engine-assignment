@@ -30,7 +30,7 @@ npm run dev
 ```
 
 Open http://localhost:5173. Everything works without an API key: plain-English rules fall back to a
-built-in offline parser (see [LLM setup](#llm-setup) to use a real model). `npm test` runs the 202 tests.
+built-in offline parser (see [LLM setup](#llm-setup) to use a real model). `npm test` runs the 279 tests.
 
 ## Try it in two minutes
 
@@ -70,7 +70,7 @@ built-in offline parser (see [LLM setup](#llm-setup) to use a real model). `npm 
   the merchant and customer views can never disagree.
 - **A second opinion on the LLM.** When an LLM parses a rule, the rule-based parser reads the same text,
   and the confirmation card flags any disagreement, especially a condition the LLM may have dropped.
-- **A measured parser.** `npm run eval:parser` scores the parser on 26 descriptions (see
+- **A measured parser.** `npm run eval:parser` scores the parser on 47 descriptions (see
   [Measuring the parser](#measuring-the-parser)).
 - **Base engine fixes.** Discounts could push prices below zero (Rs.500 off a Rs.449 item gave −Rs.51);
   one bad CSV row discarded the whole file; `stackable=ture` silently became `false`; explanations
@@ -103,7 +103,9 @@ read, the user sees each skipped row with its reason and how the total would cha
 replace or keep the current cart. Replacing silently with a partial cart changes the total and can
 switch the cart offer off: `cart-with-errors.pdf` drops from Rs.5,339 to Rs.2,924 and loses the
 cart offer. Unreadable files (not a PDF, password-protected, scanned with no text, no header, missing
-columns) leave the cart untouched with a specific message.
+columns) leave the cart untouched with a specific message. Extra columns (Category, MRP next to a
+Price column) are ignored and listed, so their values can't leak into a price. A Qty other than 1
+is skipped with a reason, because the engine prices one unit per line.
 
 **Invalid LLM output.** The model's reply is never trusted. It must be JSON in the agreed shape and pass
 `validateRule()`, or it is rejected with a clear message: "need more detail", "can't be added
@@ -113,8 +115,12 @@ rule-based parser reads the same text, and the card shows any disagreement befor
 
 **Conditions the engine can't express.** "15% off Natura Casa *on Flipkart only*" can't be represented
 (a rule targets a brand *or* a platform). Quietly dropping "on Flipkart" would give the discount to
-Amazon shoppers too, so the rule is refused instead. Time limits, customer types, quantity deals, caps
-and multiple rules in one sentence are refused for the same reason.
+Amazon shoppers too, so the rule is refused instead. Time limits, customer types, payment methods,
+quantities, exclusions, maximums and multiple rules in one sentence are refused for the same reason.
+Keyword lists can't anticipate every phrasing, so the rule-based parser goes further: it only accepts
+a description when it can account for **every word**. "15% off Natura Casa on Myntra *only*" is
+refused because "Myntra" and "only" are unexplained. The validator applies the same principle: a
+cart rule limited to a brand is rejected, not widened to the whole cart.
 
 **Just below the threshold.** All money is whole rupees (each discount is rounded as it is applied),
 so there are no floating-point near-misses: the subtotal the customer sees is the number compared.
@@ -164,11 +170,15 @@ offline parser answers instead and the card says so. The demo keeps working and 
 
 ## Measuring the parser
 
-`server/ruleParser/evalCases.js` holds 26 descriptions: the brief's examples, other phrasings, and
-inputs that must be refused (vague requests, conditions the engine can't apply, a 150% discount, a
-prompt-injection attempt). Each one is scored on what the user would actually be shown, after
-validation. A *wrong rule* (one shown that doesn't match) is counted separately from a refusal,
-because it's the worse failure.
+`server/ruleParser/evalCases.js` holds 47 descriptions:
+- the brief's examples and other phrasings;
+- inputs that must be refused: vague requests, conditions the engine can't apply, a 150% discount, a
+  prompt-injection attempt;
+- adversarial cases from a code review: negations like "can’t be combined", "1 lakh", "3+ items",
+  "except Flipkart", names the app doesn't know.
+
+Each one is scored on what the user would actually be shown, after validation. A *wrong rule* (one
+shown that doesn't match) is counted separately from a refusal, because it's the worse failure.
 
 ```bash
 npm run eval:parser    # uses the LLM in .env if set, otherwise the offline parser
@@ -176,9 +186,30 @@ npm run eval:parser    # uses the LLM in .env if set, otherwise the offline pars
 
 | Parser  | Score | Wrong rules |
 |---------|-------|-------------|
-| Offline | 25/26 | 0 (it asks instead of guessing at number words like "a hundred rupees") |
+| Offline | 46/47 | 0 (it asks instead of guessing at number words like "a hundred rupees") |
 
-A test pins the offline parser's key property: it may refuse, but it never returns a wrong rule.
+A test pins the offline parser's key property on this set: it may refuse, but it doesn't return a
+wrong rule.
+
+## What an adversarial review caught
+
+Before submitting, I had the code reviewed adversarially. The reviewer was asked to break it, not to
+approve it. Every finding was reproduced, fixed and turned into a test:
+
+- **The rule-based parser returned wrong rules for plausible text.** "can’t be combined" (with a curly
+  apostrophe) was read as stackable, "1 lakh" became Rs.1, "at least 3 products" became a Rs.3 minimum,
+  and "except Flipkart" became *only* Flipkart. Patching keywords would have left the next phrasing
+  broken, so the fix is structural: refuse unless every word is accounted for.
+- **An extra PDF column could change prices.** A Qty column turned Rs.1,299 into Rs.12,992. Every
+  header cell is now a column, and unknown columns are ignored and listed.
+- **A cart rule naming a brand was silently widened to the whole cart.** It is now rejected.
+- **A rule preview could crash the page** (a cart rule rounding to Rs.0). Fixed, and an error boundary
+  now replaces a blank page with a message.
+- **A slow PDF could overwrite a newer cart, and ties said "better than".** Both fixed.
+
+Known limitation: `/api/parse-rule` is unauthenticated, so anyone can spend the LLM quota. When the
+quota runs out, the app falls back to the offline parser rather than failing. A real deployment would
+add rate limiting.
 
 ## If this went to production
 
@@ -217,7 +248,7 @@ Environment Variables:
 
 ## Testing
 
-`npm test` runs 202 tests, also in CI on every push:
+`npm test` runs 279 tests, also in CI on every push:
 - **Engine:** the brief's expected results, cart-offer boundaries, ties, stacking order, the
   never-below-zero cap, the explanation text after rules change, and the "add Rs.X more" hint.
 - **Inputs:** CSV edge cases; the plain-English adapter against valid, invalid, vague, unsupported and
